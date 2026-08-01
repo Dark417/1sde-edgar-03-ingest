@@ -145,8 +145,23 @@ Rather than bypass the pipeline for that, a third sink is added:
 - `--local-only` runs `LocalSink` alone and relaxes config validation so `raw_bucket`
   and the Databricks credentials are not required.
 
+**Local is the default** (`local_only: bool = True`). The reasoning: repo 2 does not
+exist, so local is the only path that currently works end to end, and the path that
+works should be the one that needs no configuration. A `SEC_USER_AGENT` is the sole
+requirement — no AWS credentials, no SSM, no bucket.
+
+The failure mode that default invites is a production task silently landing to a
+container-local disk and exiting 0. Three things guard against it:
+
+1. **Leaving local mode is explicit** — `--remote` or `LOCAL_ONLY=false`. A task
+   definition that sets it cannot fall back to local by accident, because nothing
+   downgrades the mode at runtime.
+2. **A missing `RAW_BUCKET` in remote mode is exit 2**, never a downgrade to local.
+3. **The mode is logged** as `landing_target` on every run, so a task that believed
+   it was writing to S3 can be seen not to have been.
+
 What this deviates from: F-1 specifies `raw_bucket: str` as unconditionally required.
-Under `--local-only` it is optional. Nothing else in the contract moves — `landing_mode`
+In local mode it is optional. Nothing else in the contract moves — `landing_mode`
 remains `Literal["s3", "volume"]`, and the landing path and envelope are unchanged.
 
 The payoff is that the manual load and the eventual automated load consume

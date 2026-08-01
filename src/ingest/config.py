@@ -84,7 +84,13 @@ class Settings(BaseSettings):
 
     # Local mode. Not part of AGENTS.md F-1; see docs/03-ingest-design.md §8 for
     # why it exists and exactly what it relaxes.
-    local_only: bool = False
+    #
+    # Defaults to True because repo 2's AWS infrastructure does not exist yet:
+    # local is the only path that currently works end to end, so it is the one
+    # that should work with no configuration. Switching to the AWS path is an
+    # explicit act (LOCAL_ONLY=false / --remote), which is the right way round —
+    # see the safety note on _validate_sink_requirements.
+    local_only: bool = True
     local_landing_dir: str = DEFAULT_LOCAL_LANDING_DIR
 
     max_rps_hard_cap: float = Field(default=8.0, frozen=True)
@@ -127,6 +133,14 @@ class Settings(BaseSettings):
         a bucket name would be theatre. Outside it, ``raw_bucket`` is required
         because S3 is the system of record, and volume mode additionally
         requires the Databricks host and token.
+
+        **Safety note on the local-by-default choice.** The failure mode to
+        avoid is a production task silently landing to a container-local disk
+        and exiting 0. Two things prevent it: leaving local mode is explicit
+        (``LOCAL_ONLY=false`` / ``--remote``), so a task definition that sets it
+        cannot fall back to local by accident; and once it is set, a missing
+        ``RAW_BUCKET`` is a hard exit 2 rather than a downgrade. The mode is
+        also logged on every run.
         """
         if self.local_only:
             if not self.local_landing_dir:
@@ -166,8 +180,9 @@ class Settings(BaseSettings):
 def load_settings(overrides: dict[str, Any] | None = None, *, use_ssm: bool = True) -> Settings:
     """Resolve settings: env var -> SSM -> error naming the missing key.
 
-    ``overrides`` (from CLI flags) win over both, so ``--local-only`` can relax
-    requirements before SSM is ever consulted.
+    ``overrides`` (from CLI flags) win over both, so ``--remote`` can demand the
+    AWS path and ``--local-only`` can relax requirements before SSM is ever
+    consulted.
 
     Raises ``ConfigError`` — never a bare pydantic error — so the CLI has one
     thing to catch and map to exit code 2.
@@ -175,9 +190,8 @@ def load_settings(overrides: dict[str, Any] | None = None, *, use_ssm: bool = Tr
     Does not handle: caching. ``load_settings_cached`` does, for the CLI.
     """
     overrides = dict(overrides or {})
-    local_only = bool(overrides.get("local_only")) or _env_truthy("INGEST_LOCAL_ONLY")
-    if local_only:
-        overrides["local_only"] = True
+    local_only = _resolve_local_only(overrides)
+    overrides["local_only"] = local_only
 
     resolved: dict[str, Any] = {}
     for env_name, ssm_name in SSM_FALLBACKS.items():
@@ -207,9 +221,34 @@ def load_settings_cached() -> Settings:
     return load_settings()
 
 
-def _env_truthy(name: str) -> bool:
-    """Return whether an env var is set to something meaning 'yes'."""
-    return os.environ.get(name, "").strip().lower() in {"1", "true", "yes", "on"}
+def _resolve_local_only(overrides: dict[str, Any]) -> bool:
+    """Decide local vs AWS mode: CLI flag -> env var -> default (local).
+
+    Tri-state at every level, because "not set" and "set to false" mean
+    different things here: ``--remote`` and ``LOCAL_ONLY=false`` must be able to
+    *turn off* a mode that defaults on.
+
+    ``LOCAL_ONLY`` is the documented name; ``INGEST_LOCAL_ONLY`` is accepted as
+    a prefixed alias for environments where a bare ``LOCAL_ONLY`` would be too
+    generic.
+    """
+    if overrides.get("local_only") is not None:
+        return bool(overrides["local_only"])
+    for name in ("LOCAL_ONLY", "INGEST_LOCAL_ONLY"):
+        flag = _env_flag(name)
+        if flag is not None:
+            return flag
+    return True  # local is the default; see Settings.local_only
+
+
+def _env_flag(name: str) -> bool | None:
+    """Return an env var as a tri-state boolean: True, False, or unset."""
+    raw = os.environ.get(name, "").strip().lower()
+    if raw in {"1", "true", "yes", "on"}:
+        return True
+    if raw in {"0", "false", "no", "off"}:
+        return False
+    return None
 
 
 def _format_validation_error(exc: Exception) -> str:

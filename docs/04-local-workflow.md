@@ -24,12 +24,15 @@ uv pip install /tmp/contracts
 uv pip install -e ".[dev]"
 ```
 
-Only two things are ever required, even in local mode:
+Exactly one thing is ever required:
 
 ```bash
 export SEC_USER_AGENT="edgar-lakehouse-demo you@example.com"   # must contain an @
-export INGEST_LOCAL_ONLY=1
 ```
+
+Local is the default mode, so there is nothing else to set: no AWS credentials,
+no SSM parameters, no bucket. `LOCAL_LANDING_DIR` overrides the output root
+(default `./local-landing`).
 
 The SEC 403s anonymous clients. A `User-Agent` without an `@` fails at startup rather
 than at the first request.
@@ -52,15 +55,15 @@ are reported as zero records, not as a failure.
 
 ```bash
 # ~6k filings, one HTTP request, a couple of seconds
-python -m ingest.cli run --stream filing_index --logical-date 2026-07-29 --local-only
+python -m ingest.cli run --stream filing_index --logical-date 2026-07-29
 
 # 25 companies from the packaged universe, one request each
 python -m ingest.cli run --stream company_submissions --logical-date 2026-07-29 \
-  --local-only --cik-limit 25
+  --cik-limit 25
 
 # 3 companies x 15 concepts = 45 requests, ~9 s at 5 rps
 python -m ingest.cli run --stream company_concept --logical-date 2026-07-29 \
-  --local-only --cik-limit 3
+  --cik-limit 3
 ```
 
 Add `--dry-run` first if you want the manifest (record count, first 3 records, target
@@ -187,6 +190,7 @@ Truncate and reload rather than appending twice.
 Nothing here is throwaway. When repo 2 is up:
 
 ```bash
+export LOCAL_ONLY=false          # leaving local mode is always explicit
 export LANDING_MODE=volume
 export RAW_BUCKET=$(aws ssm get-parameter --name /edgar-lakehouse/s3/raw_bucket \
   --query Parameter.Value --output text)
@@ -195,9 +199,17 @@ export DBX_HOST=$(aws ssm get-parameter --name /edgar-lakehouse/dbx/host \
 export DBX_TOKEN=$(aws secretsmanager get-secret-value \
   --secret-id /edgar-lakehouse/databricks/pat --query SecretString --output text)
 
-python -m ingest.cli run --stream filing_index --logical-date 2026-07-29
+python -m ingest.cli run --stream filing_index --logical-date 2026-07-29 --remote
 ```
 
-Drop `--local-only` and the same command writes to S3 (system of record, commits
-first) and pushes to the Volume (transport, allowed to fail). The bytes and the
-filename are the same ones you loaded by hand.
+The same command now writes to S3 (system of record, commits first) and pushes to
+the Volume (transport, allowed to fail). The bytes and the filename are the same
+ones you loaded by hand.
+
+**Set `LOCAL_ONLY=false` in the ECS task definition**, not just in your shell.
+Local is the default, so a task that never sets it would land to a
+container-local disk that vanishes when the task exits. Two things make that
+hard to do by accident: the mode is logged as `landing_target` on every run, and
+once `LOCAL_ONLY=false` is set, a missing `RAW_BUCKET` is a hard exit 2 rather
+than a quiet downgrade. Run `config-check` as a command override first
+(`AGENTS.md` §9.8) and read the `local_only` field before the first real run.

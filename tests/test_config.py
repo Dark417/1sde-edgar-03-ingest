@@ -11,19 +11,19 @@ from ingest.config import ConfigError, Settings, load_settings, resolve_ssm
 def test_missing_user_agent_names_the_env_var() -> None:
     """F-1 acceptance: the message must contain the env var name."""
     with pytest.raises(ConfigError) as excinfo:
-        load_settings({"local_only": True})
+        load_settings()
     assert "SEC_USER_AGENT" in str(excinfo.value)
 
 
 def test_user_agent_without_at_fails_validation(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("SEC_USER_AGENT", "edgar-lakehouse-demo")
     with pytest.raises(ConfigError, match="contact email"):
-        load_settings({"local_only": True})
+        load_settings()
 
 
 def test_valid_local_only_config_resolves(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("SEC_USER_AGENT", USER_AGENT)
-    settings = load_settings({"local_only": True})
+    settings = load_settings()
     assert settings.local_only is True
     assert settings.raw_bucket is None  # not required in local mode
 
@@ -32,7 +32,7 @@ def test_raw_bucket_required_outside_local_mode(monkeypatch: pytest.MonkeyPatch)
     monkeypatch.setenv("SEC_USER_AGENT", USER_AGENT)
     monkeypatch.setenv("LANDING_MODE", "s3")
     with pytest.raises(ConfigError, match="RAW_BUCKET"):
-        load_settings()
+        load_settings({"local_only": False})
 
 
 def test_volume_mode_requires_host_and_token(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -40,7 +40,7 @@ def test_volume_mode_requires_host_and_token(monkeypatch: pytest.MonkeyPatch) ->
     monkeypatch.setenv("RAW_BUCKET", "b")
     monkeypatch.setenv("LANDING_MODE", "volume")
     with pytest.raises(ConfigError) as excinfo:
-        load_settings()
+        load_settings({"local_only": False})
     assert "DBX_HOST" in str(excinfo.value)
     assert "DBX_TOKEN" in str(excinfo.value)
 
@@ -54,21 +54,21 @@ def test_volume_mode_accepts_full_credentials(monkeypatch: pytest.MonkeyPatch) -
         ("DBX_TOKEN", "secret"),
     ):
         monkeypatch.setenv(name, value)
-    assert load_settings().landing_mode == "volume"
+    assert load_settings({"local_only": False}).landing_mode == "volume"
 
 
 def test_max_rps_hard_cap_is_enforced(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("SEC_USER_AGENT", USER_AGENT)
     monkeypatch.setenv("MAX_RPS", "9")
     with pytest.raises(ConfigError, match="hard cap"):
-        load_settings({"local_only": True})
+        load_settings()
 
 
 def test_non_positive_max_rps_is_rejected(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("SEC_USER_AGENT", USER_AGENT)
     monkeypatch.setenv("MAX_RPS", "0")
     with pytest.raises(ConfigError, match="positive"):
-        load_settings({"local_only": True})
+        load_settings()
 
 
 def test_secrets_are_redacted(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -80,7 +80,7 @@ def test_secrets_are_redacted(monkeypatch: pytest.MonkeyPatch) -> None:
         ("DBX_TOKEN", "super-secret-pat"),
     ):
         monkeypatch.setenv(name, value)
-    redacted = load_settings().redacted()
+    redacted = load_settings({"local_only": False}).redacted()
     assert redacted["dbx_token"] == "***redacted***"
     assert "super-secret-pat" not in str(redacted)
 
@@ -90,7 +90,7 @@ def test_env_var_beats_ssm(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("RAW_BUCKET", "from-env")
     monkeypatch.setenv("LANDING_MODE", "s3")
     monkeypatch.setattr("ingest.config.resolve_ssm", lambda name: "from-ssm")
-    assert load_settings().raw_bucket == "from-env"
+    assert load_settings({"local_only": False}).raw_bucket == "from-env"
 
 
 def test_ssm_is_used_when_env_is_absent(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -100,7 +100,7 @@ def test_ssm_is_used_when_env_is_absent(monkeypatch: pytest.MonkeyPatch) -> None
         "ingest.config.resolve_ssm",
         lambda name: "from-ssm" if name.endswith("raw_bucket") else None,
     )
-    assert load_settings().raw_bucket == "from-ssm"
+    assert load_settings({"local_only": False}).raw_bucket == "from-ssm"
 
 
 def test_local_mode_never_contacts_ssm(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -108,7 +108,7 @@ def test_local_mode_never_contacts_ssm(monkeypatch: pytest.MonkeyPatch) -> None:
     calls: list[str] = []
     monkeypatch.setenv("SEC_USER_AGENT", USER_AGENT)
     monkeypatch.setattr("ingest.config.resolve_ssm", lambda name: calls.append(name) or None)
-    load_settings({"local_only": True})
+    load_settings()
     assert calls == []
 
 
@@ -125,18 +125,74 @@ def test_resolve_ssm_returns_none_when_aws_is_unreachable() -> None:
 
 def test_settings_are_frozen(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("SEC_USER_AGENT", USER_AGENT)
-    settings = load_settings({"local_only": True})
+    settings = load_settings()
     with pytest.raises(Exception, match=r"frozen|immutable"):
         settings.max_rps = 7.0  # type: ignore[misc]
 
 
 def test_defaults_match_the_spec(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("SEC_USER_AGENT", USER_AGENT)
-    settings = load_settings({"local_only": True})
+    settings = load_settings()
     assert settings.max_rps == 5.0
     assert settings.volume_path == "/Volumes/edgar/landing/edgar"
     assert settings.landing_mode == "volume"  # ADR-001's safe default
 
 
 def test_settings_can_be_built_directly() -> None:
-    assert Settings(sec_user_agent=USER_AGENT, local_only=True).max_rps == 5.0
+    assert Settings(sec_user_agent=USER_AGENT).max_rps == 5.0
+
+
+# ------------------------------------------------- local is the default path
+
+
+def test_only_a_user_agent_is_needed_to_run(monkeypatch: pytest.MonkeyPatch) -> None:
+    """The whole point: no AWS, no SSM, no bucket — just a User-Agent.
+
+    Repo 2's infrastructure does not exist yet, so the path that works is the
+    path that must work with no configuration.
+    """
+    monkeypatch.setenv("SEC_USER_AGENT", USER_AGENT)
+    settings = load_settings()
+    assert settings.local_only is True
+    assert settings.local_landing_dir == "local-landing"
+
+
+def test_remote_must_be_requested_explicitly(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Leaving local mode is an explicit act, so prod cannot fall back to it."""
+    monkeypatch.setenv("SEC_USER_AGENT", USER_AGENT)
+    with pytest.raises(ConfigError, match="RAW_BUCKET"):
+        load_settings({"local_only": False})
+
+
+def test_local_only_false_env_var_leaves_local_mode(monkeypatch: pytest.MonkeyPatch) -> None:
+    """LOCAL_ONLY=false must turn OFF a mode that defaults on."""
+    monkeypatch.setenv("SEC_USER_AGENT", USER_AGENT)
+    monkeypatch.setenv("LOCAL_ONLY", "false")
+    with pytest.raises(ConfigError, match="RAW_BUCKET"):
+        load_settings()
+
+
+@pytest.mark.parametrize("value", ["0", "false", "no", "off", "FALSE"])
+def test_falsy_spellings_all_leave_local_mode(monkeypatch: pytest.MonkeyPatch, value: str) -> None:
+    monkeypatch.setenv("SEC_USER_AGENT", USER_AGENT)
+    monkeypatch.setenv("LOCAL_ONLY", value)
+    with pytest.raises(ConfigError, match="RAW_BUCKET"):
+        load_settings()
+
+
+def test_cli_flag_beats_the_env_var(monkeypatch: pytest.MonkeyPatch) -> None:
+    """--local-only must win over LOCAL_ONLY=false."""
+    monkeypatch.setenv("SEC_USER_AGENT", USER_AGENT)
+    monkeypatch.setenv("LOCAL_ONLY", "false")
+    assert load_settings({"local_only": True}).local_only is True
+
+
+def test_remote_mode_still_reaches_ssm(monkeypatch: pytest.MonkeyPatch) -> None:
+    """The AWS path is unchanged; only the default moved."""
+    monkeypatch.setenv("SEC_USER_AGENT", USER_AGENT)
+    monkeypatch.setenv("LANDING_MODE", "s3")
+    monkeypatch.setattr(
+        "ingest.config.resolve_ssm",
+        lambda name: "bucket-from-ssm" if name.endswith("raw_bucket") else None,
+    )
+    assert load_settings({"local_only": False}).raw_bucket == "bucket-from-ssm"

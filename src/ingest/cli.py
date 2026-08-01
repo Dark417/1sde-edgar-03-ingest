@@ -48,8 +48,12 @@ log = get_logger(__name__)
 @app.command("config-check")
 def config_check(
     local_only: Annotated[
-        bool, typer.Option("--local-only", help="Write to a local directory only; skip AWS.")
-    ] = False,
+        bool | None,
+        typer.Option(
+            "--local-only/--remote",
+            help="Check the local config (default) or the S3 + Volume config.",
+        ),
+    ] = None,
 ) -> None:
     """Resolve all config, print it with secrets redacted, exit 0 or 2.
 
@@ -58,7 +62,7 @@ def config_check(
     """
     configure_logging()
     try:
-        settings = load_settings({"local_only": local_only or None})
+        settings = load_settings({"local_only": local_only})
     except ConfigError as exc:
         typer.echo(f"config error: {exc}", err=True)
         raise typer.Exit(EXIT_CONFIG_ERROR) from exc
@@ -81,8 +85,12 @@ def run(
         bool, typer.Option("--resume", help="Skip (cik, concept) pairs already checkpointed.")
     ] = False,
     local_only: Annotated[
-        bool, typer.Option("--local-only", help="Write to a local directory only; skip AWS.")
-    ] = False,
+        bool | None,
+        typer.Option(
+            "--local-only/--remote",
+            help="Write locally only (default), or --remote for the S3 + Volume path.",
+        ),
+    ] = None,
     local_dir: Annotated[
         str | None, typer.Option("--local-dir", help="Local landing root (implies --local-only).")
     ] = None,
@@ -104,13 +112,14 @@ def run(
         typer.echo(f"--logical-date must be YYYY-MM-DD; got {logical_date!r}", err=True)
         raise typer.Exit(EXIT_CONFIG_ERROR) from exc
 
+    # --local-dir implies local mode, but never overrides an explicit --remote:
+    # silently ignoring --remote would be the exact surprise this flag pair
+    # exists to prevent.
+    if local_dir and local_only is None:
+        local_only = True
+
     try:
-        settings = load_settings(
-            {
-                "local_only": True if (local_only or local_dir) else None,
-                "local_landing_dir": local_dir,
-            }
-        )
+        settings = load_settings({"local_only": local_only, "local_landing_dir": local_dir})
     except ConfigError as exc:
         typer.echo(f"config error: {exc}", err=True)
         raise typer.Exit(EXIT_CONFIG_ERROR) from exc
@@ -132,8 +141,17 @@ def build_sinks(settings: Settings, dry_run: bool) -> list[Sink]:
         return [NoopSink(mode=settings.landing_mode, raw_bucket=settings.raw_bucket or "dry-run")]
 
     if settings.local_only:
+        # Logged on every run so local mode is never silent: a task that
+        # believed it was writing to S3 must be able to see that it was not.
+        log.info(
+            "landing_target",
+            mode="local",
+            directory=settings.local_landing_dir,
+            note="no AWS or Databricks call will be made; pass --remote for the S3 + Volume path",
+        )
         return [LocalSink(settings.local_landing_dir)]
 
+    log.info("landing_target", mode=settings.landing_mode, raw_bucket=settings.raw_bucket)
     sinks: list[Sink] = [S3Sink(settings.raw_bucket or "")]
     if settings.landing_mode == "volume" and settings.dbx_host and settings.dbx_token:
         sinks.append(

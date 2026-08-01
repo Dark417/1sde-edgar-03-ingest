@@ -32,6 +32,7 @@ def aws_env(monkeypatch: pytest.MonkeyPatch) -> MagicMock:
     monkeypatch.setenv("LANDING_MODE", "volume")
     monkeypatch.setenv("DBX_HOST", "https://dbx.example.com")
     monkeypatch.setenv("DBX_TOKEN", "super-secret-pat-value")
+    monkeypatch.setenv("LOCAL_ONLY", "false")
     client = MagicMock()
     monkeypatch.setattr("boto3.client", lambda *a, **k: client)
     return client
@@ -270,3 +271,74 @@ def test_rerunning_leaves_one_object(local_env: Path, index_text: str) -> None:
     for _ in range(2):
         runner.invoke(app, ["run", "--stream", "filing_index", "--logical-date", "2026-07-29"])
     assert len(list((local_env / "landing").rglob("*.json.gz"))) == 1
+
+
+# ------------------------------------------------- local is the default path
+
+
+@respx.mock
+def test_runs_with_only_a_user_agent_set(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, index_text: str
+) -> None:
+    """No AWS, no SSM, no bucket — the path that works needs no configuration."""
+    monkeypatch.setenv("SEC_USER_AGENT", USER_AGENT)
+    monkeypatch.chdir(tmp_path)
+    respx.get(url__startswith="https://www.sec.gov").mock(
+        return_value=httpx.Response(200, text=index_text)
+    )
+    result = runner.invoke(app, ["run", "--stream", "filing_index", "--logical-date", "2026-07-29"])
+    assert result.exit_code == EXIT_OK
+    assert len(list((tmp_path / "local-landing").rglob("*.json.gz"))) == 1
+
+
+def test_config_check_passes_with_only_a_user_agent(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("SEC_USER_AGENT", USER_AGENT)
+    result = runner.invoke(app, ["config-check"])
+    assert result.exit_code == EXIT_OK
+    assert '"local_only": true' in result.output
+
+
+def test_local_mode_is_logged_not_silent(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, index_text: str
+) -> None:
+    """A run that believed it wrote to S3 must be able to see that it did not."""
+    monkeypatch.setenv("SEC_USER_AGENT", USER_AGENT)
+    monkeypatch.setenv("LOCAL_LANDING_DIR", str(tmp_path / "landing"))
+    with respx.mock:
+        respx.get(url__startswith="https://www.sec.gov").mock(
+            return_value=httpx.Response(200, text=index_text)
+        )
+        result = runner.invoke(
+            app, ["run", "--stream", "filing_index", "--logical-date", "2026-07-29"]
+        )
+    assert '"landing_target"' in result.output
+    assert '"mode": "local"' in result.output
+
+
+def test_remote_flag_demands_aws_config(monkeypatch: pytest.MonkeyPatch) -> None:
+    """--remote with nothing configured is exit 2, never a silent local write."""
+    monkeypatch.setenv("SEC_USER_AGENT", USER_AGENT)
+    result = runner.invoke(
+        app, ["run", "--stream", "filing_index", "--logical-date", "2026-07-29", "--remote"]
+    )
+    assert result.exit_code == EXIT_CONFIG_ERROR
+    assert "RAW_BUCKET" in result.output
+
+
+def test_local_dir_does_not_override_an_explicit_remote(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Silently ignoring --remote is the surprise the flag pair exists to prevent."""
+    monkeypatch.setenv("SEC_USER_AGENT", USER_AGENT)
+    result = runner.invoke(
+        app,
+        [
+            "run",
+            "--stream",
+            "filing_index",
+            "--logical-date",
+            "2026-07-29",
+            "--remote",
+            "--local-dir",
+            "/tmp/whatever",
+        ],
+    )
+    assert result.exit_code == EXIT_CONFIG_ERROR

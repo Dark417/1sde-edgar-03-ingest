@@ -24,12 +24,17 @@ uv venv --python 3.11 && source .venv/bin/activate
 uv pip install /path/to/1sde-databricks-edgar-01-contracts   # repo 1
 uv pip install -e ".[dev]"
 
+# The only thing that must be set. No AWS, no SSM, no bucket.
 export SEC_USER_AGENT="edgar-lakehouse-demo you@example.com"   # must contain an @
-export INGEST_LOCAL_ONLY=1
 
 python -m ingest.cli config-check
-python -m ingest.cli run --stream filing_index --logical-date 2026-07-29 --local-only
+python -m ingest.cli run --stream filing_index --logical-date 2026-07-29
 ```
+
+**Local is the default.** Repo 2's AWS infrastructure does not exist yet, so the
+path that works is the path that needs no configuration. The S3 + Volume path is
+opt-in via `--remote` (or `LOCAL_ONLY=false`), and asking for it without a
+`RAW_BUCKET` is a hard exit 2 — it never quietly downgrades to a local write.
 
 Output is gzip NDJSON, one landing envelope per line:
 
@@ -43,7 +48,7 @@ local-landing/edgar/filing_index/dt=2026-07-29/filing_index-20260729-eb4807cfccc
 python -m ingest.cli run --stream {filing_index|company_submissions|company_concept}
                          --logical-date YYYY-MM-DD
                          [--dry-run] [--cik-limit N] [--resume]
-                         [--local-only] [--local-dir PATH]
+                         [--local-only | --remote] [--local-dir PATH]
 python -m ingest.cli config-check
 ```
 
