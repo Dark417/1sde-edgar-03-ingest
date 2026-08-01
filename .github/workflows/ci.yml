@@ -12,6 +12,12 @@ env:
   # wheel has to come from somewhere. See "Obtain the pinned contracts wheel".
   CONTRACTS_REPO: Dark417/1sde-databricks-edgar-01-contracts
   CONTRACTS_TOKEN: ${{ secrets.CONTRACTS_REPO_TOKEN }}
+  # Repo 1 has no tags yet, so this defaults to its default branch — which
+  # conflicts with "never depend on main, always an exact pinned version"
+  # (AGENTS.global.md law 1). Set the repository variable CONTRACTS_REF to a tag
+  # or SHA the moment repo 1 has one; the version guard below is the interim
+  # mitigation, not a substitute.
+  CONTRACTS_REF: ${{ vars.CONTRACTS_REF }}
 
 permissions:
   contents: read
@@ -82,6 +88,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: ${{ env.CONTRACTS_REPO }}
+          ref: ${{ env.CONTRACTS_REF }}
           token: ${{ env.CONTRACTS_TOKEN }}
           path: .contracts-src
 
@@ -89,6 +96,7 @@ jobs:
         if: env.CONTRACTS_TOKEN != ''
         run: |
           mkdir -p wheels
+          echo "building contracts from ${CONTRACTS_REPO}@${CONTRACTS_REF:-<default branch>}"
           uv build --wheel --out-dir wheels .contracts-src
 
       # Fail loudly and actionably rather than with an opaque resolver error.
