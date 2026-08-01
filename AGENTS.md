@@ -1,9 +1,9 @@
-# Repo 3 / 5 — `1sde-databricks-03-ingest`
+# Repo 3 / 5 — `1sde-databricks-edgar-03-ingest`
 
 > Copy to repo root as `AGENTS.md`. Sections 0–8 are agent instructions. Section 9 is
 > yours, by hand. Section 10 is what repo 4 consumes.
 >
-> GitHub: `github.com/Dark417/1sde-databricks-03-ingest`
+> GitHub: `github.com/Dark417/1sde-databricks-edgar-03-ingest`
 > Build order position: **3 of 5.** Requires repos 1 and 2 complete.
 
 ---
@@ -35,7 +35,7 @@ because a Volume `PUT` 500'd — defeats the entire replay story.
 - The container image.
 
 ### Does NOT own
-- Any schema definition. Import it from `fin_lakehouse_contracts`.
+- Any schema definition. Import it from `edgar_lakehouse_contracts`.
 - Any Spark. This repo has no Spark dependency and must not acquire one.
 - Any transformation. Payloads are passed through **verbatim**. Reshaping raw data
   here destroys the property that makes replay meaningful.
@@ -54,13 +54,13 @@ this repo's logic was on the day it ran.
 
 | Input | Source | How it reaches this repo |
 |---|---|---|
-| `fin_lakehouse_contracts==<version>` | repo 1 wheel | pinned in `pyproject.toml`; wheel fetched via `aws s3 cp` from the wheels prefix (pip cannot read `s3://` directly) |
+| `edgar_lakehouse_contracts==<version>` | repo 1 wheel | pinned in `pyproject.toml`; wheel fetched via `aws s3 cp` from the wheels prefix (pip cannot read `s3://` directly) |
 | `Stream`, `landing_path()`, `batch_id()`, `LandingEnvelope`, `FilingIndexRecord` | repo 1 package | imported — **never reimplemented** |
 | `ADR-001` landing mode | repo 1 `docs/` | `LANDING_MODE` env, default from SSM |
-| `/fin-lakehouse/s3/raw_bucket` | repo 2 SSM | runtime config |
-| `/fin-lakehouse/dbx/host`, `/fin-lakehouse/dbx/volume_path` | repo 2 SSM | runtime config |
-| `/fin-lakehouse/ecr/ingest_repo` | repo 2 SSM | CI push target |
-| Secrets `/fin-lakehouse/sec/user-agent`, `/fin-lakehouse/databricks/pat` | repo 2 (hand-created) | injected by ECS as `secrets` |
+| `/edgar-lakehouse/s3/raw_bucket` | repo 2 SSM | runtime config |
+| `/edgar-lakehouse/dbx/host`, `/edgar-lakehouse/dbx/volume_path` | repo 2 SSM | runtime config |
+| `/edgar-lakehouse/ecr/ingest_repo` | repo 2 SSM | CI push target |
+| Secrets `/edgar-lakehouse/sec/user-agent`, `/edgar-lakehouse/databricks/pat` | repo 2 (hand-created) | injected by ECS as `secrets` |
 | OIDC role ARN for this repo | repo 2 SSM | CI auth |
 
 **Hard rule:** no bucket name, host, ARN, or path is hardcoded. Config resolution
@@ -91,7 +91,7 @@ a container that runs for ninety seconds).
 ## 4. Layered structure
 
 ```
-1sde-databricks-03-ingest/
+1sde-databricks-edgar-03-ingest/
 ├── AGENTS.md
 ├── pyproject.toml
 ├── Dockerfile
@@ -167,11 +167,11 @@ class Settings(BaseSettings):
     raw_bucket: str
     dbx_host: str | None = None
     dbx_token: SecretStr | None = None
-    volume_path: str = "/Volumes/fin/landing/edgar"
+    volume_path: str = "/Volumes/edgar/landing/edgar"
     max_rps: float = 5.0
     cik_universe_uri: str | None = None
 ```
-Resolution: env → SSM (`/fin-lakehouse/*`) → error naming the missing key.
+Resolution: env → SSM (`/edgar-lakehouse/*`) → error naming the missing key.
 Validator: if `landing_mode == "volume"`, `dbx_host` and `dbx_token` are required.
 
 **Acceptance:** missing `sec_user_agent` exits 2 with a message containing the env var
@@ -292,7 +292,7 @@ on: push main     -> above + docker build + push to ECR by digest
                      + update ECS task definition
 ```
 
-**Contract-compat check:** load the pinned `fin_lakehouse_contracts` and assert every
+**Contract-compat check:** load the pinned `edgar_lakehouse_contracts` and assert every
 field this repo writes into an envelope exists in that version's `LandingEnvelope`.
 This is the mitigation for the five-repo split; without it, drift is silent until
 production.
@@ -305,23 +305,23 @@ Auth: OIDC role from repo 2. No long-lived AWS keys, ever.
 
 ### 9.1 Create the repo
 ```bash
-gh repo create Dark417/1sde-databricks-03-ingest \
+gh repo create Dark417/1sde-databricks-edgar-03-ingest \
   --private --add-readme --gitignore Python --license mit --clone
-cd 1sde-databricks-03-ingest
+cd 1sde-databricks-edgar-03-ingest
 mkdir -p docs && cp ../design/00-design-doc.md ../design/02-data-contracts.md docs/
 ```
 
 ### 9.2 Pin the contracts version 🔴
 ```toml
 # pyproject.toml
-dependencies = ["fin-lakehouse-contracts==0.1.0", "httpx", "boto3", ...]
+dependencies = ["edgar-lakehouse-contracts==0.1.0", "httpx", "boto3", ...]
 ```
 Exact pin, `==`, not `>=`. A caret range across five repos means five different
 versions in production and no way to reason about which.
 
 ### 9.3 Collect an EDGAR fixture by hand
 ```bash
-curl -H "User-Agent: fin-lakehouse-demo you@example.com" \
+curl -H "User-Agent: edgar-lakehouse-demo you@example.com" \
   "https://www.sec.gov/Archives/edgar/daily-index/2026/QTR3/form.20260729.idx" \
   | head -60 > tests/fixtures/form.20260729.idx
 ```
@@ -330,14 +330,14 @@ it has changed before and it will change again.
 
 ### 9.4 First dry run
 ```bash
-export SEC_USER_AGENT="fin-lakehouse-demo you@example.com"
+export SEC_USER_AGENT="edgar-lakehouse-demo you@example.com"
 export LANDING_MODE=volume
-export RAW_BUCKET=$(aws ssm get-parameter --name /fin-lakehouse/s3/raw_bucket \
+export RAW_BUCKET=$(aws ssm get-parameter --name /edgar-lakehouse/s3/raw_bucket \
   --query Parameter.Value --output text)
-export DBX_HOST=$(aws ssm get-parameter --name /fin-lakehouse/dbx/host \
+export DBX_HOST=$(aws ssm get-parameter --name /edgar-lakehouse/dbx/host \
   --query Parameter.Value --output text)
 export DBX_TOKEN=$(aws secretsmanager get-secret-value \
-  --secret-id /fin-lakehouse/databricks/pat --query SecretString --output text)
+  --secret-id /edgar-lakehouse/databricks/pat --query SecretString --output text)
 
 python -m ingest.cli run --stream filing_index \
   --logical-date 2026-07-29 --dry-run
@@ -357,7 +357,7 @@ aws s3 ls "s3://$RAW_BUCKET/edgar/filing_index/dt=2026-07-29/"
 ```
 Then confirm in a Databricks notebook:
 ```python
-dbutils.fs.ls("/Volumes/fin/landing/edgar/filing_index/dt=2026-07-29/")
+dbutils.fs.ls("/Volumes/edgar/landing/edgar/filing_index/dt=2026-07-29/")
 ```
 
 ### 9.6 Run it twice
@@ -367,7 +367,7 @@ Fix before proceeding.
 
 ### 9.7 Build and push the image
 ```bash
-ECR=$(aws ssm get-parameter --name /fin-lakehouse/ecr/ingest_repo \
+ECR=$(aws ssm get-parameter --name /edgar-lakehouse/ecr/ingest_repo \
   --query Parameter.Value --output text)
 aws ecr get-login-password | docker login --username AWS --password-stdin "${ECR%%/*}"
 docker build -t "$ECR:0.1.0" .

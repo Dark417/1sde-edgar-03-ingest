@@ -1,4 +1,4 @@
-# fin-lakehouse — global rules (all five repos)
+# edgar-lakehouse — global rules (all five repos)
 
 > This file governs every repo in the project. Each repo carries its own `AGENTS.md`
 > with repo-specific instructions; when the two disagree, the repo file wins for that
@@ -13,11 +13,11 @@ financial facts, split into five repos with one-directional dependencies:
 
 | # | Repo | Role |
 |---|---|---|
-| 1 | `1sde-databricks-01-contracts` | Liquibase DDL + Python schema package `fin_lakehouse_contracts` + schema-drift test |
-| 2 | `1sde-databricks-02-infra` | Terraform: AWS + Databricks workspace objects + SSM interface |
-| 3 | `1sde-databricks-03-ingest` | EDGAR → S3 (system of record) + Volume (transport); containerized batch CLI |
-| 4 | `1sde-databricks-04-pipelines` | bronze → silver → gold → Parquet serving export (Databricks Jobs) |
-| 5 | `1sde-databricks-05-serving` | FastAPI + DuckDB over the Parquet export; public demo UI |
+| 1 | `1sde-databricks-edgar-01-contracts` | Liquibase DDL + Python schema package `edgar_lakehouse_contracts` + schema-drift test |
+| 2 | `1sde-databricks-edgar-02-infra` | Terraform: AWS + Databricks workspace objects + SSM interface |
+| 3 | `1sde-databricks-edgar-03-ingest` | EDGAR → S3 (system of record) + Volume (transport); containerized batch CLI |
+| 4 | `1sde-databricks-edgar-04-pipelines` | bronze → silver → gold → Parquet serving export (Databricks Jobs) |
+| 5 | `1sde-databricks-edgar-05-serving` | FastAPI + DuckDB over the Parquet export; public demo UI |
 
 Build order 1→2→3→4→5, with one documented backward edge: repo 2 creates the
 catalog/schemas before repo 1's `liquibase update` can run.
