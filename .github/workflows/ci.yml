@@ -8,6 +8,10 @@ on:
 env:
   PYTHON_VERSION: "3.11"
   AWS_REGION: us-east-1
+  # Repo 1 is private and publishes no PyPI package, so the pinned contracts
+  # wheel has to come from somewhere. See "Obtain the pinned contracts wheel".
+  CONTRACTS_REPO: Dark417/1sde-databricks-edgar-01-contracts
+  CONTRACTS_TOKEN: ${{ secrets.CONTRACTS_REPO_TOKEN }}
 
 permissions:
   contents: read
@@ -22,47 +26,21 @@ jobs:
       - uses: astral-sh/setup-uv@v5
         with:
           enable-cache: true
+          cache-dependency-glob: "pyproject.toml"
 
       - name: Set up Python
         run: uv python install ${{ env.PYTHON_VERSION }}
 
-      # The contracts wheel lives in the S3 wheels prefix; pip cannot read
-      # s3:// directly, so it is copied down first (AGENTS.md §2).
-      - name: Configure AWS credentials
-        if: vars.AWS_OIDC_ROLE_ARN != ''
-        uses: aws-actions/configure-aws-credentials@v4
-        with:
-          role-to-assume: ${{ vars.AWS_OIDC_ROLE_ARN }}
-          aws-region: ${{ env.AWS_REGION }}
-
-      - name: Fetch the pinned contracts wheel
-        if: vars.AWS_OIDC_ROLE_ARN != ''
-        run: |
-          mkdir -p wheels
-          WHEELS_PREFIX=$(aws ssm get-parameter \
-            --name /edgar-lakehouse/s3/wheels_prefix \
-            --query Parameter.Value --output text)
-          aws s3 cp "$WHEELS_PREFIX" wheels/ --recursive --exclude '*' \
-            --include 'edgar_lakehouse_contracts-*.whl'
-
-      - name: Install
-        run: |
-          uv venv
-          uv pip install --find-links wheels -e ".[dev]"
-
+      # ---------------------------------------------------------------------
+      # Gates that need no dependencies. These run first on purpose: if the
+      # contracts wheel cannot be obtained, this job still reports real signal
+      # instead of dying at `uv pip install` having checked nothing.
+      # ---------------------------------------------------------------------
       - name: ruff
-        run: uv run ruff check src tests
+        run: uvx ruff check src tests
 
       - name: ruff format
-        run: uv run ruff format --check src tests
-
-      - name: mypy --strict
-        run: uv run mypy
-
-      # Coverage gate (>=85%) and the network ban are enforced inside pytest:
-      # every request is served by respx from committed fixtures.
-      - name: pytest
-        run: uv run pytest
+        run: uvx ruff format --check src tests
 
       # Redundant with tests/test_contract_compat.py, but grep-able and
       # merciless is the point (global law 9): a forbidden dep must fail CI
@@ -74,6 +52,83 @@ jobs:
             exit 1
           fi
 
+      # ---------------------------------------------------------------------
+      # The pinned contracts wheel, in order of preference.
+      # ---------------------------------------------------------------------
+      - name: Configure AWS credentials
+        if: vars.AWS_OIDC_ROLE_ARN != ''
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.AWS_OIDC_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      # Source 1 (production): repo 2's S3 wheels prefix. pip cannot read s3://
+      # directly, so the wheel is copied down first (AGENTS.md §2).
+      - name: Fetch the contracts wheel from S3
+        if: vars.AWS_OIDC_ROLE_ARN != ''
+        run: |
+          mkdir -p wheels
+          WHEELS_PREFIX=$(aws ssm get-parameter \
+            --name /edgar-lakehouse/s3/wheels_prefix \
+            --query Parameter.Value --output text)
+          aws s3 cp "$WHEELS_PREFIX" wheels/ --recursive --exclude '*' \
+            --include 'edgar_lakehouse_contracts-*.whl'
+
+      # Source 2 (interim): build it from repo 1 at the pinned version. Repo 1
+      # is private, so this needs a read-only token; without one the step is
+      # skipped and the guard below explains what to configure.
+      - name: Check out repo 1
+        if: env.CONTRACTS_TOKEN != ''
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ env.CONTRACTS_REPO }}
+          token: ${{ env.CONTRACTS_TOKEN }}
+          path: .contracts-src
+
+      - name: Build the contracts wheel from repo 1
+        if: env.CONTRACTS_TOKEN != ''
+        run: |
+          mkdir -p wheels
+          uv build --wheel --out-dir wheels .contracts-src
+
+      # Fail loudly and actionably rather than with an opaque resolver error.
+      - name: Verify the contracts wheel is present
+        run: |
+          mkdir -p wheels
+          PIN=$(grep -oE 'edgar-lakehouse-contracts==[0-9.]+' pyproject.toml | cut -d= -f3)
+          if ! ls wheels/edgar_lakehouse_contracts-*.whl >/dev/null 2>&1; then
+            echo "::error::Cannot obtain edgar-lakehouse-contracts==${PIN}."
+            echo "It is not on PyPI, and repo 1 is private with no tags or releases."
+            echo "Configure ONE of:"
+            echo "  - repository variable AWS_OIDC_ROLE_ARN (once repo 2 publishes the S3 wheels prefix), or"
+            echo "  - repository secret CONTRACTS_REPO_TOKEN, a read-only token for ${CONTRACTS_REPO}."
+            exit 1
+          fi
+          # The pin is the contract; a wheel that does not match it is drift,
+          # not a convenience (AGENTS.global.md law 1).
+          if ! ls wheels/edgar_lakehouse_contracts-${PIN}-*.whl >/dev/null 2>&1; then
+            echo "::error::wheels/ has no edgar_lakehouse_contracts ${PIN} wheel; found:"
+            ls -1 wheels/
+            exit 1
+          fi
+
+      - name: Install
+        run: |
+          uv venv
+          uv pip install --find-links wheels -e ".[dev]"
+
+      # Call the venv binaries directly, NOT `uv run`: `uv run` re-resolves the
+      # project's dependencies against the package index, which cannot satisfy
+      # the contracts pin (it is only in wheels/ via --find-links) and fails
+      # even after a successful install.
+      - name: mypy --strict
+        run: .venv/bin/mypy
+
+      # Coverage gate (>=85%) and the network ban are enforced inside pytest:
+      # every request is served by respx from committed fixtures.
+      - name: pytest
+        run: .venv/bin/pytest
+
   image:
     needs: quality
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
@@ -81,12 +136,14 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - uses: astral-sh/setup-uv@v5
+
       - uses: aws-actions/configure-aws-credentials@v4
         with:
           role-to-assume: ${{ vars.AWS_OIDC_ROLE_ARN }}
           aws-region: ${{ env.AWS_REGION }}
 
-      - name: Fetch the pinned contracts wheel
+      - name: Fetch the contracts wheel from S3
         run: |
           mkdir -p wheels
           WHEELS_PREFIX=$(aws ssm get-parameter \
@@ -130,9 +187,9 @@ jobs:
             --query 'taskDefinition' > task-def.json
           python - <<'EOF'
           import json
+          import os
           with open("task-def.json") as fh:
               task = json.load(fh)
-          import os
           task["containerDefinitions"][0]["image"] = os.environ["DIGEST"]
           for key in ("taskDefinitionArn", "revision", "status", "requiresAttributes",
                       "compatibilities", "registeredAt", "registeredBy"):

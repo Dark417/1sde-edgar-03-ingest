@@ -61,6 +61,11 @@ ignore_missing_imports = true
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = "-q --cov=ingest --cov-report=term-missing --cov-fail-under=85"
+# Put the repo root on sys.path so `from tests.conftest import ...` resolves.
+# `python -m pytest` inserts the cwd and would mask this; the `pytest` console
+# script (what CI runs) does not, so without this the suite passes locally and
+# fails in CI at collection.
+pythonpath = ["."]
 
 [tool.coverage.run]
 source = ["src/ingest"]
