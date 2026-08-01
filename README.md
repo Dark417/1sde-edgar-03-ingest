@@ -1,1 +1,94 @@
 # 1sde-databricks-edgar-03-ingest
+
+Repo 3 of 5 in the **edgar lakehouse**: a batch CLI that fetches from SEC EDGAR
+and writes raw records to the landing zone. It is the only component in the
+project that touches the public internet.
+
+It owns no schema (those are imported from `edgar_lakehouse_contracts`), has no
+Spark dependency, and performs no transformation — payloads pass through
+verbatim.
+
+> **The one design idea that governs this repo:** S3 is the system of record and
+> commits first. The Databricks landing push is a *transport* that is allowed to
+> fail. Ingest is never blocked by Databricks being down.
+
+## Quick start (local)
+
+The production path (EDGAR → S3 → Databricks) needs repo 2's AWS
+infrastructure. Until that exists, the working mode is local: pull a small
+subset to disk and load it into tables by hand. See
+[`docs/04-local-workflow.md`](docs/04-local-workflow.md).
+
+```bash
+uv venv --python 3.11 && source .venv/bin/activate
+uv pip install /path/to/1sde-databricks-edgar-01-contracts   # repo 1
+uv pip install -e ".[dev]"
+
+export SEC_USER_AGENT="edgar-lakehouse-demo you@example.com"   # must contain an @
+export INGEST_LOCAL_ONLY=1
+
+python -m ingest.cli config-check
+python -m ingest.cli run --stream filing_index --logical-date 2026-07-29 --local-only
+```
+
+Output is gzip NDJSON, one landing envelope per line:
+
+```
+local-landing/edgar/filing_index/dt=2026-07-29/filing_index-20260729-eb4807cfccc9.json.gz
+```
+
+## Commands
+
+```
+python -m ingest.cli run --stream {filing_index|company_submissions|company_concept}
+                         --logical-date YYYY-MM-DD
+                         [--dry-run] [--cik-limit N] [--resume]
+                         [--local-only] [--local-dir PATH]
+python -m ingest.cli config-check
+```
+
+`--dry-run` fetches, prints a manifest (record count, target paths), and writes
+nothing. `config-check` resolves all config, prints it with secrets redacted,
+and exits 0 or 2 — run it first inside a new ECS task to find out why it will
+fail.
+
+## Streams
+
+| Stream | Source | Volume |
+|---|---|---|
+| `filing_index` | daily form index `.idx` (fixed-width) | 1 request, ~6k records/day |
+| `company_submissions` | `data.sec.gov/submissions/CIK{cik10}.json` | 1 request per CIK |
+| `company_concept` | `data.sec.gov/api/xbrl/companyconcept/...` | universe × 15 concepts, resumable |
+
+## Exit codes are contract
+
+| Code | Meaning |
+|---|---|
+| 0 | success — **including** a failed landing push |
+| 1 | source fetch failure |
+| 2 | config error |
+| 3 | S3 sink write failure |
+
+## Development
+
+```bash
+ruff check src tests && ruff format --check src tests
+mypy                      # --strict
+pytest                    # coverage gate >= 85%; zero network calls
+```
+
+Tests never touch the network: every request is served by `respx` from real
+EDGAR samples committed under `tests/fixtures/` (see the provenance table in
+[`tests/fixtures/README.md`](tests/fixtures/README.md)).
+
+## Docs
+
+| Doc | What it is |
+|---|---|
+| [`docs/00-design-doc.md`](docs/00-design-doc.md) | authoritative, copied from repo 1 |
+| [`docs/02-data-contracts.md`](docs/02-data-contracts.md) | authoritative, copied from repo 1 |
+| [`docs/ADR-001-landing-transport.md`](docs/ADR-001-landing-transport.md) | which sink Auto Loader reads from |
+| [`docs/03-ingest-design.md`](docs/03-ingest-design.md) | this repo's design: layers, parser, sinks, resume |
+| [`docs/04-local-workflow.md`](docs/04-local-workflow.md) | pull a subset locally, load into tables by hand |
+
+`AGENTS.md` carries the full specification and the manual execution runbook.

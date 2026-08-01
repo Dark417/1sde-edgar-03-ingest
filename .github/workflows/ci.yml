@@ -1,0 +1,145 @@
+name: ci
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+env:
+  PYTHON_VERSION: "3.11"
+  AWS_REGION: us-east-1
+
+permissions:
+  contents: read
+  id-token: write   # OIDC only. No long-lived AWS keys, ever (design doc §7).
+
+jobs:
+  quality:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+
+      - name: Set up Python
+        run: uv python install ${{ env.PYTHON_VERSION }}
+
+      # The contracts wheel lives in the S3 wheels prefix; pip cannot read
+      # s3:// directly, so it is copied down first (AGENTS.md §2).
+      - name: Configure AWS credentials
+        if: vars.AWS_OIDC_ROLE_ARN != ''
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.AWS_OIDC_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Fetch the pinned contracts wheel
+        if: vars.AWS_OIDC_ROLE_ARN != ''
+        run: |
+          mkdir -p wheels
+          WHEELS_PREFIX=$(aws ssm get-parameter \
+            --name /edgar-lakehouse/s3/wheels_prefix \
+            --query Parameter.Value --output text)
+          aws s3 cp "$WHEELS_PREFIX" wheels/ --recursive --exclude '*' \
+            --include 'edgar_lakehouse_contracts-*.whl'
+
+      - name: Install
+        run: |
+          uv venv
+          uv pip install --find-links wheels -e ".[dev]"
+
+      - name: ruff
+        run: uv run ruff check src tests
+
+      - name: ruff format
+        run: uv run ruff format --check src tests
+
+      - name: mypy --strict
+        run: uv run mypy
+
+      # Coverage gate (>=85%) and the network ban are enforced inside pytest:
+      # every request is served by respx from committed fixtures.
+      - name: pytest
+        run: uv run pytest
+
+      # Redundant with tests/test_contract_compat.py, but grep-able and
+      # merciless is the point (global law 9): a forbidden dep must fail CI
+      # even if someone deletes the test.
+      - name: forbidden dependencies
+        run: |
+          if grep -rEn '^\s*(import|from)\s+(pyspark|pandas|requests|databricks)\b' src/; then
+            echo "::error::forbidden dependency imported (AGENTS.md §3)"
+            exit 1
+          fi
+
+  image:
+    needs: quality
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.AWS_OIDC_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Fetch the pinned contracts wheel
+        run: |
+          mkdir -p wheels
+          WHEELS_PREFIX=$(aws ssm get-parameter \
+            --name /edgar-lakehouse/s3/wheels_prefix \
+            --query Parameter.Value --output text)
+          aws s3 cp "$WHEELS_PREFIX" wheels/ --recursive --exclude '*' \
+            --include 'edgar_lakehouse_contracts-*.whl'
+
+      - uses: aws-actions/amazon-ecr-login@v2
+        id: ecr
+
+      - name: Build and push by digest
+        id: build
+        run: |
+          ECR=$(aws ssm get-parameter --name /edgar-lakehouse/ecr/ingest_repo \
+            --query Parameter.Value --output text)
+          docker build -t "$ECR:${GITHUB_SHA::12}" .
+          docker push "$ECR:${GITHUB_SHA::12}"
+          DIGEST=$(docker inspect --format='{{index .RepoDigests 0}}' "$ECR:${GITHUB_SHA::12}")
+          echo "digest=$DIGEST" >> "$GITHUB_OUTPUT"
+
+      # Image size is a gate, not a nice-to-have: this container runs for ~90
+      # seconds and a fat image is pure cold-start cost (AGENTS.md §6 F-6).
+      - name: Image size budget
+        run: |
+          ECR=$(aws ssm get-parameter --name /edgar-lakehouse/ecr/ingest_repo \
+            --query Parameter.Value --output text)
+          SIZE_MB=$(docker image inspect "$ECR:${GITHUB_SHA::12}" \
+            --format='{{.Size}}' | awk '{print int($1/1024/1024)}')
+          echo "image size: ${SIZE_MB} MB"
+          if [ "$SIZE_MB" -gt 250 ]; then
+            echo "::error::image is ${SIZE_MB} MB, budget is 250 MB"
+            exit 1
+          fi
+
+      - name: Update the ECS task definition
+        run: |
+          TASK_FAMILY=$(aws ssm get-parameter --name /edgar-lakehouse/ecs/ingest_task_family \
+            --query Parameter.Value --output text)
+          aws ecs describe-task-definition --task-definition "$TASK_FAMILY" \
+            --query 'taskDefinition' > task-def.json
+          python - <<'EOF'
+          import json
+          with open("task-def.json") as fh:
+              task = json.load(fh)
+          import os
+          task["containerDefinitions"][0]["image"] = os.environ["DIGEST"]
+          for key in ("taskDefinitionArn", "revision", "status", "requiresAttributes",
+                      "compatibilities", "registeredAt", "registeredBy"):
+              task.pop(key, None)
+          with open("task-def.json", "w") as fh:
+              json.dump(task, fh)
+          EOF
+          aws ecs register-task-definition --cli-input-json file://task-def.json
+        env:
+          DIGEST: ${{ steps.build.outputs.digest }}

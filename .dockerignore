@@ -1,0 +1,13 @@
+.git
+.github
+.venv
+local-landing
+docs
+tests
+htmlcov
+.pytest_cache
+.ruff_cache
+.mypy_cache
+**/__pycache__
+*.pyc
+.coverage

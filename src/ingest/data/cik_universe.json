@@ -1,0 +1,127 @@
+[
+  {
+    "cik": "0000320193",
+    "ticker": "AAPL",
+    "title": "Apple Inc."
+  },
+  {
+    "cik": "0000789019",
+    "ticker": "MSFT",
+    "title": "MICROSOFT CORP"
+  },
+  {
+    "cik": "0001652044",
+    "ticker": "GOOGL",
+    "title": "Alphabet Inc."
+  },
+  {
+    "cik": "0001018724",
+    "ticker": "AMZN",
+    "title": "AMAZON COM INC"
+  },
+  {
+    "cik": "0001045810",
+    "ticker": "NVDA",
+    "title": "NVIDIA CORP"
+  },
+  {
+    "cik": "0001326801",
+    "ticker": "META",
+    "title": "Meta Platforms, Inc."
+  },
+  {
+    "cik": "0001318605",
+    "ticker": "TSLA",
+    "title": "Tesla, Inc."
+  },
+  {
+    "cik": "0000019617",
+    "ticker": "JPM",
+    "title": "JPMORGAN CHASE & CO"
+  },
+  {
+    "cik": "0001403161",
+    "ticker": "V",
+    "title": "VISA INC."
+  },
+  {
+    "cik": "0000731766",
+    "ticker": "UNH",
+    "title": "UNITEDHEALTH GROUP INC"
+  },
+  {
+    "cik": "0000200406",
+    "ticker": "JNJ",
+    "title": "JOHNSON & JOHNSON"
+  },
+  {
+    "cik": "0000104169",
+    "ticker": "WMT",
+    "title": "Walmart Inc."
+  },
+  {
+    "cik": "0000080424",
+    "ticker": "PG",
+    "title": "PROCTER & GAMBLE Co"
+  },
+  {
+    "cik": "0001141391",
+    "ticker": "MA",
+    "title": "Mastercard Inc"
+  },
+  {
+    "cik": "0000354950",
+    "ticker": "HD",
+    "title": "HOME DEPOT, INC."
+  },
+  {
+    "cik": "0000093410",
+    "ticker": "CVX",
+    "title": "CHEVRON CORP"
+  },
+  {
+    "cik": "0001551152",
+    "ticker": "ABBV",
+    "title": "AbbVie Inc."
+  },
+  {
+    "cik": "0000021344",
+    "ticker": "KO",
+    "title": "COCA COLA CO"
+  },
+  {
+    "cik": "0000077476",
+    "ticker": "PEP",
+    "title": "PEPSICO INC"
+  },
+  {
+    "cik": "0000909832",
+    "ticker": "COST",
+    "title": "COSTCO WHOLESALE CORP /NEW"
+  },
+  {
+    "cik": "0000310158",
+    "ticker": "MRK",
+    "title": "Merck & Co., Inc."
+  },
+  {
+    "cik": "0001730168",
+    "ticker": "AVGO",
+    "title": "Broadcom Inc."
+  },
+  {
+    "cik": "0000796343",
+    "ticker": "ADBE",
+    "title": "ADOBE INC."
+  },
+  {
+    "cik": "0001108524",
+    "ticker": "CRM",
+    "title": "Salesforce, Inc."
+  },
+  {
+    "cik": "0001065280",
+    "ticker": "NFLX",
+    "title": "NETFLIX INC"
+  }
+]

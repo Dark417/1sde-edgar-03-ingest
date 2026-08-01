@@ -1,0 +1,58 @@
+Description:           Daily Index of EDGAR Dissemination Feed by Form Type
+Last Data Received:    Jul 29, 2026
+Comments:              webmaster@sec.gov
+Anonymous FTP:         ftp://ftp.sec.gov/edgar/
+ 
+ 
+ 
+ 
+Form Type   Company Name                                                  CIK
+      Date Filed  File Name
+---------------------------------------------------------------------------------------------------------------------------------------------
+1-SA             Hartley Opportunity Fund LLC                                  2056463     20260729    edgar/data/2056463/0001096906-26-001138.txt                                                
+10-D             Wells Fargo Commercial Mortgage Trust 2026-5C10               2136440     20260729    edgar/data/2136440/0001888524-26-013778.txt                                                
+10-Q             MCGRATH RENTCORP                                              752714      20260729    edgar/data/752714/0001193125-26-323614.txt                                                
+13F-HR           Cornerstone Wealth, LLC/TN                                    2135644     20260729    edgar/data/2135644/0002135644-26-000002.txt                                                
+13F-HR           Robertson Stephens Wealth Management, LLC                     1767307     20260729    edgar/data/1767307/0001172661-26-002897.txt                                                
+144              DROPBOX, INC.                                                 1467623     20260729    edgar/data/1467623/0001950047-26-007395.txt                                                
+144              Sherbet Eric                                                  1679512     20260729    edgar/data/1679512/0001950047-26-007383.txt                                                
+3                Private Bancorp of America, Inc.                              1705284     20260729    edgar/data/1705284/0001193125-26-324107.txt                                                
+4                Bender Jeremy                                                 1863107     20260729    edgar/data/1863107/0001470831-26-000738.txt                                                
+4                Dolphin Entertainment, Inc.                                   1282224     20260729    edgar/data/1282224/0001079973-26-000995.txt                                                
+4                Intuitive Machines, Inc.                                      1844452     20260729    edgar/data/1844452/0001140361-26-030049.txt                                                
+4                Natera, Inc.                                                  1604821     20260729    edgar/data/1604821/0002010135-26-000016.txt                                                
+4                Star Equity Holdings, Inc.                                    1210708     20260729    edgar/data/1210708/0001556224-26-000004.txt                                                
+424B2            BANK OF AMERICA CORP /DE/                                     70858       20260729    edgar/data/70858/0001213900-26-082756.txt                                                
+424B2            BofA Finance LLC                                              1682472     20260729    edgar/data/1682472/0001918704-26-021567.txt                                                
+424B2            Copano Pipelines/South Texas LLC                              1364689     20260729    edgar/data/1364689/0001104659-26-088252.txt                                                
+424B2            GS Finance Corp.                                              1419828     20260729    edgar/data/1419828/0001193125-26-324211.txt                                                
+424B2            KM North Cahokia Land LLC                                     1625494     20260729    edgar/data/1625494/0001104659-26-088252.txt                                                
+424B2            MORGAN STANLEY                                                895421      20260729    edgar/data/895421/0001839882-26-036917.txt                                                
+424B2            UBS AG                                                        1114446     20260729    edgar/data/1114446/0001114446-26-005082.txt                                                
+425              Axalta Coating Systems Ltd.                                   1616862     20260729    edgar/data/1616862/0001193125-26-322134.txt                                                
+485BPOS          RYDEX SERIES FUNDS                                            899148      20260729    edgar/data/899148/0001193125-26-324258.txt                                                
+486BPOS          Harrison Street Real Assets Fund LLC                          1687898     20260729    edgar/data/1687898/0001133228-26-010968.txt                                                
+497              VARIABLE ANNUITY I SER ACC OF GRT WEST LI & ANNU INS CO OF N  1037155     20260729    edgar/data/1037155/0001104659-26-087920.txt                                                
+497K             AMERICAN CENTURY GOVERNMENT INCOME TRUST                      773674      20260729    edgar/data/773674/0000773674-26-000020.txt                                                
+497K             PIMCO FUNDS                                                   810893      20260729    edgar/data/810893/0001193125-26-321528.txt                                                
+497VPU           VARIABLE SEPARATE ACCOUNT                                     729522      20260729    edgar/data/729522/0000729522-26-000053.txt                                                
+6-K              UBS Group AG                                                  1610520     20260729    edgar/data/1610520/0001610520-26-000085.txt                                                
+8-K              CleanCore Solutions, Inc.                                     1956741     20260729    edgar/data/1956741/0001213900-26-082561.txt                                                
+8-K              Longeveron Inc.                                               1721484     20260729    edgar/data/1721484/0001213900-26-082786.txt                                                
+8-K              Sonos Inc                                                     1314727     20260729    edgar/data/1314727/0001314727-26-000081.txt                                                
+ABS-EE           Honda Auto Receivables 2026-3 Owner Trust                     2143476     20260729    edgar/data/2143476/0001193125-26-323027.txt                                                
+ARS              Replimune Group, Inc.                                         1737953     20260729    edgar/data/1737953/0001104659-26-087654.txt                                                
+D                Millstone Global Fund LP                                      2147968     20260729    edgar/data/2147968/0002147968-26-000001.txt                                                
+DEF 14A          Replimune Group, Inc.                                         1737953     20260729    edgar/data/1737953/0001104659-26-087650.txt                                                
+FWP              JPMorgan Chase Financial Co. LLC                              1665650     20260729    edgar/data/1665650/0001213900-26-082419.txt                                                
+N-PX             Coquina Private Wealth LLC                                    2103792     20260729    edgar/data/2103792/0002063364-26-000232.txt                                                
+NPORT-P          AMERICAN CENTURY ETF TRUST                                    1710607     20260729    edgar/data/1710607/0001193125-26-323977.txt                                                
+NPORT-P          DBX ETF TRUST                                                 1503123     20260729    edgar/data/1503123/0000940400-26-028755.txt                                                
+NPORT-P          Global X Funds                                                1432353     20260729    edgar/data/1432353/0002048251-26-006489.txt                                                
+NPORT-P          SPARROW FUNDS                                                 1066241     20260729    edgar/data/1066241/0001162044-26-000647.txt                                                
+NPORT-P          VANGUARD WORLD FUND                                           52848       20260729    edgar/data/52848/0000052848-26-000886.txt                                                
+SCHEDULE 13G     BlackRock, Inc.                                               2012383     20260729    edgar/data/2012383/0002012383-26-002783.txt                                                
+SCHEDULE 13G     Princeton Bancorp, Inc.                                       1913971     20260729    edgar/data/1913971/0002012383-26-002860.txt                                                
+SCHEDULE 13G/A   Cheer Holding, Inc.                                           1738758     20260729    edgar/data/1738758/0000921895-26-001888.txt                                                
+SCHEDULE 13G/A   eToro Group Ltd.                                              1493318     20260729    edgar/data/1493318/0001178913-26-003641.txt                                                
+SEC STAFF ACTIO  Diginex Ltd                                                   2010499     20260729    edgar/data/2010499/9999999997-26-001277.txt                                                
