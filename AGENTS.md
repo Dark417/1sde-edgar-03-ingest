@@ -54,7 +54,7 @@ this repo's logic was on the day it ran.
 
 | Input | Source | How it reaches this repo |
 |---|---|---|
-| `edgar_lakehouse_contracts==<version>` | repo 1 wheel | pinned in `pyproject.toml`; wheel fetched via `aws s3 cp` from the wheels prefix (pip cannot read `s3://` directly) |
+| `edgar_lakehouse_contracts==<version>` | repo 1 wheel | pinned in `pyproject.toml`; wheel downloaded from repo 1's GitHub release (tag `CONTRACTS_REF`) — it is not on PyPI |
 | `Stream`, `landing_path()`, `batch_id()`, `LandingEnvelope`, `FilingIndexRecord` | repo 1 package | imported — **never reimplemented** |
 | `ADR-001` landing mode | repo 1 `docs/` | `LANDING_MODE` env, default from SSM |
 | `/edgar-lakehouse/s3/raw_bucket` | repo 2 SSM | runtime config |
@@ -215,7 +215,7 @@ class Sink(Protocol):
 `S3Sink`: gzip NDJSON, key from `names.landing_path("s3", ...)`, `put_object` with
 `ContentEncoding=gzip`. Overwrites on re-run — deterministic key means idempotent.
 
-`VolumeSink`: `PUT {host}/api/2.0/fs/files{volume_path}/{stream}/dt={date}/{batch}.json.gz?overwrite=true`
+`VolumeSink`: `PUT {host}/api/2.0/fs/files{volume_path}/{stream}/logical_date={date}/{batch}.json.gz?overwrite=true`
 with `Authorization: Bearer`. Stream the body; do not build one `bytes` for a large
 concept batch.
 
@@ -314,7 +314,7 @@ mkdir -p docs && cp ../design/00-design-doc.md ../design/02-data-contracts.md do
 ### 9.2 Pin the contracts version 🔴
 ```toml
 # pyproject.toml
-dependencies = ["edgar-lakehouse-contracts==0.1.0", "httpx", "boto3", ...]
+dependencies = ["edgar-lakehouse-contracts==1.1.0", "httpx", "boto3", ...]
 ```
 Exact pin, `==`, not `>=`. A caret range across five repos means five different
 versions in production and no way to reason about which.
@@ -353,11 +353,11 @@ python -m ingest.cli run --stream filing_index \
 ### 9.5 First real run
 ```bash
 python -m ingest.cli run --stream filing_index --logical-date 2026-07-29
-aws s3 ls "s3://$RAW_BUCKET/edgar/filing_index/dt=2026-07-29/"
+aws s3 ls "s3://$RAW_BUCKET/edgar/filing_index/logical_date=2026-07-29/"
 ```
 Then confirm in a Databricks notebook:
 ```python
-dbutils.fs.ls("/Volumes/edgar/landing/edgar/filing_index/dt=2026-07-29/")
+dbutils.fs.ls("/Volumes/edgar/landing/edgar/filing_index/logical_date=2026-07-29/")
 ```
 
 ### 9.6 Run it twice

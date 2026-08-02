@@ -20,11 +20,11 @@ env:
   # on every v* tag, and repo 1 is public, so the release asset is the source:
   # exact pinned version, no AWS, no credential. See "Obtain the contracts wheel".
   CONTRACTS_REPO: Dark417/1sde-edgar-01-contracts
-  # The release tag to install, e.g. v0.1.0. Repo 1 has no tags yet, so this is
-  # empty and CI falls back to building from source at the default branch --
-  # which conflicts with "never depend on main, always an exact pinned version"
-  # (AGENTS.global.md law 1). Tag repo 1 and set this variable to close that gap;
-  # the version guard below is the interim mitigation, not a substitute.
+  # The release tag to install. Set as a repository variable (currently v1.1.0)
+  # and it must agree with the pyproject pin -- the version guard below fails the
+  # build if they drift. If the variable is ever unset, CI falls back to building
+  # from repo 1's default branch, which violates "always an exact pinned version"
+  # (AGENTS.global.md law 1); the same guard is what keeps that fallback honest.
   CONTRACTS_REF: ${{ vars.CONTRACTS_REF }}
 
 permissions:
@@ -78,9 +78,10 @@ jobs:
       # to read `/edgar-lakehouse/s3/wheels_prefix`, a parameter repo 2 never
       # actually publishes -- the S3 path could not have worked as written.
       #
-      # Until repo 1 is tagged, CONTRACTS_REF is empty and we build from source
-      # at its default branch. That is a known violation of "pin an exact
-      # version" (global law 1); the version guard below is what keeps it honest.
+      # CONTRACTS_REF (repository variable) names the release tag; if it is ever
+      # unset, CI falls back to building from repo 1's default branch. That
+      # fallback violates "pin an exact version" (global law 1); the version
+      # guard below is what keeps it honest either way.
       # ---------------------------------------------------------------------
       - name: Download the pinned contracts wheel from repo 1's release
         if: env.CONTRACTS_REF != ''

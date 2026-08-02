@@ -1,8 +1,15 @@
 # Ingest design — repo 3
 
 > Derived from `00-design-doc.md` and `02-data-contracts.md`, which are authoritative
-> and copied verbatim from repo 1 (`edgar-lakehouse-contracts` @ `07a9808`, v0.1.0).
-> Where this document and those disagree, those win and this document is a bug.
+> and copied verbatim from repo 1 (`edgar-lakehouse-contracts` v1.1.0).
+> Where this document and those disagree, those win and this document is a bug —
+> with one caveat: two spots in repo 1's `02-data-contracts.md` predate the v1
+> envelope realign and are contradicted by repo 1's own *code*, which wins over its
+> doc. §1's envelope table still shows the old seven-field underscore-prefixed
+> envelope (the real one is the flat eleven-field `LandingEnvelope` in
+> `envelope.py`, with `payload_json` as a string), and §1's landing paths say
+> `dt=` where `names.landing_path()` emits `logical_date=`. Both need fixing in
+> repo 1, then a re-copy here.
 
 ## 1. What this repo is
 
@@ -132,8 +139,9 @@ the byte-identity property. Object *keys* are already deterministic via
 
 **This is an intentional, documented deviation.** `AGENTS.md` describes the production
 topology only: EDGAR → S3 → Databricks. The current working mode is the interim one —
-data is pulled to a local disk and loaded into tables by hand, because repo 2 (AWS
-infra, SSM) is not stood up yet.
+data is pulled to a local disk and loaded into tables by hand. Repo 2's infrastructure
+has since been applied (bucket, ECR, ECS, SSM), but the ECS schedule is disabled and
+the remote path has not yet had its first validated run, so the interim mode stands.
 
 Rather than bypass the pipeline for that, a third sink is added:
 
@@ -145,10 +153,11 @@ Rather than bypass the pipeline for that, a third sink is added:
 - `--local-only` runs `LocalSink` alone and relaxes config validation so `raw_bucket`
   and the Databricks credentials are not required.
 
-**Local is the default** (`local_only: bool = True`). The reasoning: repo 2 does not
-exist, so local is the only path that currently works end to end, and the path that
-works should be the one that needs no configuration. A `SEC_USER_AGENT` is the sole
-requirement — no AWS credentials, no SSM, no bucket.
+**Local is the default** (`local_only: bool = True`). The reasoning: local is the only
+path that has been validated end to end so far, and the path that works should be the
+one that needs no configuration. A `SEC_USER_AGENT` is the sole requirement — no AWS
+credentials, no SSM, no bucket. The default flips to remote in the ECS task definition,
+never here.
 
 The failure mode that default invites is a production task silently landing to a
 container-local disk and exiting 0. Three things guard against it:
@@ -180,7 +189,7 @@ reads the completed pairs out of that file and skips them. One landing object is
 uploaded at the end, containing all records. The checkpoint is deleted on success.
 
 Because the checkpoint stores the envelopes themselves, a resumed run produces the
-same landing object as an uninterrupted one — `_fetched_at` differs per record, but
+same landing object as an uninterrupted one — `fetched_at` differs per record, but
 that field is metadata and is explicitly excluded from keys and filenames (data
 contracts §1).
 
