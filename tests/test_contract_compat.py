@@ -115,7 +115,7 @@ def test_no_hardcoded_bucket_or_host() -> None:
 
 
 def test_version_is_exported() -> None:
-    assert ingest.__version__ == "0.1.0"
+    assert ingest.__version__ == "0.2.0"
 
 
 def test_layer_rule_l0_imports_nothing_internal() -> None:

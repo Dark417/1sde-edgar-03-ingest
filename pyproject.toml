@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "ingest"
-version = "0.1.0"
+version = "0.2.0"
 description = "EDGAR -> landing zone: containerized batch CLI (repo 3 of the edgar lakehouse)"
 readme = "README.md"
 requires-python = ">=3.11"
@@ -14,7 +14,7 @@ authors = [{ name = "Dark417" }]
 # Exact pins, never ranges. A caret range across five repos means five different
 # versions in production and no way to reason about which (AGENTS.global.md law 1).
 dependencies = [
-    "edgar-lakehouse-contracts==1.1.0",
+    "edgar-lakehouse-contracts==1.2.0",
     "httpx>=0.27",
     "boto3>=1.34",
     "typer>=0.12",

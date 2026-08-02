@@ -326,7 +326,7 @@ mkdir -p docs && cp ../design/00-design-doc.md ../design/02-data-contracts.md do
 ### 9.2 Pin the contracts version 🔴
 ```toml
 # pyproject.toml
-dependencies = ["edgar-lakehouse-contracts==1.1.0", "httpx", "boto3", ...]
+dependencies = ["edgar-lakehouse-contracts==1.2.0", "httpx", "boto3", ...]
 ```
 Exact pin, `==`, not `>=`. A caret range across five repos means five different
 versions in production and no way to reason about which.

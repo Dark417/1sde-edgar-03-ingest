@@ -1,8 +1,8 @@
 # Ingest design — repo 3
 
 > Derived from `00-design-doc.md` and `02-data-contracts.md`, which are authoritative
-> and copied verbatim from repo 1 (`edgar-lakehouse-contracts` @ `59de873`, v1.1.0
-> plus the §1 envelope/path doc fix).
+> and copied verbatim from repo 1 (`edgar-lakehouse-contracts` @ `59de873`;
+> package pin: v1.2.0).
 > Where this document and those disagree, those win and this document is a bug.
 
 ## 1. What this repo is
