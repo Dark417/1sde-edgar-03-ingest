@@ -11,8 +11,8 @@ ENV UV_COMPILE_BYTECODE=1 \
 
 WORKDIR /build
 
-# The contracts wheel is fetched from the S3 wheels prefix by CI (pip cannot
-# read s3:// directly) and passed in as build context. AGENTS.md §2.
+# The contracts wheel is downloaded by CI from repo 1's GitHub release
+# (tag CONTRACTS_REF; it is not on PyPI) and passed in as build context.
 COPY wheels/ /wheels/
 COPY pyproject.toml README.md ./
 COPY src/ ./src/

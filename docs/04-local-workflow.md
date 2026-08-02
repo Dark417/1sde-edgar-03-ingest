@@ -1,9 +1,10 @@
 # Local workflow — pull a subset, load it into tables by hand
 
-The production path is EDGAR → S3 → Databricks Auto Loader. That path needs repo 2
-(AWS infra + SSM), which is not stood up yet. This document describes the interim
-path currently in use: **pull a small subset to local disk, then load it into tables
-manually.**
+The production path is EDGAR → S3 → Databricks Auto Loader. Repo 2's infrastructure
+(bucket, ECR, ECS, SSM) has been applied, but the ECS schedule is disabled and the
+remote path has not yet had its first validated run. This document describes the
+interim path currently in use: **pull a small subset to local disk, then load it into
+tables manually.**
 
 The files produced locally are byte-identical to what the production path will write,
 so the tables you hand-load now and the tables Auto Loader builds later cannot
@@ -18,10 +19,11 @@ disagree.
 uv venv --python 3.11
 source .venv/bin/activate
 
-# repo 1's contracts wheel — built from a local clone until the S3 wheels prefix exists
-git clone https://github.com/Dark417/1sde-edgar-01-contracts /tmp/contracts
-uv pip install /tmp/contracts
-uv pip install -e ".[dev]"
+# repo 1's contracts wheel — from its GitHub release (not on PyPI); the tag must
+# match the pin in pyproject.toml
+gh release download v1.1.0 --repo Dark417/1sde-edgar-01-contracts \
+  --pattern 'edgar_lakehouse_contracts-*.whl' --dir wheels
+uv pip install --find-links wheels -e ".[dev]"
 ```
 
 Exactly one thing is ever required:
@@ -94,10 +96,11 @@ This is the step that catches a wrong parser. Do it by hand the first time.
 
 - [ ] `filing_index` record count is in the low thousands. Zero or six digits means
       the wrong file or the wrong column layout.
-- [ ] Spot-check three accession numbers from `payload.file_name` against
-      `https://www.sec.gov/cgi-bin/browse-edgar?action=getcompany`.
-- [ ] `payload.cik` values are strings and keep their leading zeros where present.
-- [ ] `_logical_date` is `2026-07-29`, not a datetime.
+- [ ] Spot-check three accession numbers (`resource_id`, also inside `payload_json`)
+      against `https://www.sec.gov/cgi-bin/browse-edgar?action=getcompany`.
+- [ ] `cik` values inside `payload_json` are strings and keep their leading zeros
+      where present.
+- [ ] `logical_date` is `2026-07-29`, not a datetime.
 - [ ] Run the exact same command twice. The directory must still contain **one**
       file, not two. Two files means `batch_id` is not deterministic and everything
       downstream will double (design doc §8.1).
@@ -124,43 +127,60 @@ Then, in a notebook:
 ```python
 from pyspark.sql import functions as F
 
+# The envelope is flat (envelope.py in repo 1): metadata fields plus payload_json,
+# which is the verbatim source record as one JSON string. Bronze columns and their
+# mapping are from data contracts §6 (the v1.0.0 table reference).
+PAYLOAD_DDL = (
+    "company_name STRING, form_type STRING, cik STRING, "
+    "date_filed STRING, file_name STRING, accession_number STRING"
+)
+
 raw = spark.read.json("/Volumes/edgar/landing/edgar/filing_index/logical_date=2026-07-29/")
 
 bronze = (
-    raw.select(
-        F.col("payload.company_name").alias("company_name"),
+    raw.withColumn("payload", F.from_json("payload_json", PAYLOAD_DDL))
+    .select(
+        F.to_date("logical_date").alias("logical_date"),
+        F.col("resource_id"),
+        F.to_timestamp("fetched_at").alias("fetched_at"),
         F.col("payload.form_type").alias("form_type"),
+        F.col("payload.company_name").alias("company_name"),
         F.col("payload.cik").alias("cik"),
         F.col("payload.date_filed").alias("date_filed"),
+        F.col("payload.accession_number").alias("accession_number"),
         F.col("payload.file_name").alias("file_name"),
-        F.input_file_name().alias("_source_file"),
+        F.col("batch_id").alias("_ingest_batch_id"),
         F.current_timestamp().alias("_ingest_ts"),
-        F.col("_batch_id"),
-        F.to_date("_logical_date").alias("_logical_date"),
-        F.col("_schema_version"),
+        F.input_file_name().alias("_source_file"),
+        F.col("source_system").alias("_source_system"),
+        F.col("envelope_version").alias("_envelope_version"),
         F.lit(None).cast("string").alias("_rescued_data"),
     )
 )
 bronze.write.mode("append").saveAsTable("edgar.bronze.filing_index_raw")
 ```
 
-Columns and types are from data contracts §2.1. Payload fields land as `STRING` —
-typing happens in silver, not here.
+Columns and types are from data contracts §6 (the v1.0.0 table reference, which
+supersedes §2). Payload fields land as `STRING` — typing happens in silver, not here.
 
-`company_submissions` and `company_concept` are simpler: the whole payload is stored
-as one `payload_json` string (data contracts §2.2, §2.3), because those documents are
-deeply nested and their shape is not ours to control.
+`company_submissions` and `company_concept` are simpler: the envelope's `payload_json`
+string goes into bronze as-is (data contracts §2.2, §2.3), because those documents are
+deeply nested and their shape is not ours to control. The CIK is the envelope's
+`resource_id` (for `company_concept` it is `"<cik>/<concept>"` — split on `/`).
 
 ```python
 raw = spark.read.json("/Volumes/edgar/landing/edgar/company_submissions/logical_date=2026-07-29/")
 (raw.select(
-    F.col("payload.cik").alias("cik"),
-    F.to_json("payload").alias("payload_json"),
-    F.input_file_name().alias("_source_file"),
+    F.to_date("logical_date").alias("logical_date"),
+    F.col("resource_id"),
+    F.to_timestamp("fetched_at").alias("fetched_at"),
+    F.col("resource_id").alias("cik"),
+    F.col("payload_json"),
+    F.col("batch_id").alias("_ingest_batch_id"),
     F.current_timestamp().alias("_ingest_ts"),
-    F.col("_batch_id"),
-    F.to_date("_logical_date").alias("_logical_date"),
-    F.col("_schema_version"),
+    F.input_file_name().alias("_source_file"),
+    F.col("source_system").alias("_source_system"),
+    F.col("envelope_version").alias("_envelope_version"),
     F.lit(None).cast("string").alias("_rescued_data"),
  ).write.mode("append").saveAsTable("edgar.bronze.company_submissions_raw"))
 ```
@@ -170,10 +190,10 @@ raw = spark.read.json("/Volumes/edgar/landing/edgar/company_submissions/logical_
 Useful for eyeballing the data without spending Free Edition quota.
 
 ```sql
-SELECT payload->>'form_type'   AS form_type,
-       payload->>'company_name' AS company_name,
-       payload->>'cik'          AS cik,
-       count(*) OVER ()         AS total_rows
+SELECT (payload_json::JSON)->>'form_type'    AS form_type,
+       (payload_json::JSON)->>'company_name' AS company_name,
+       (payload_json::JSON)->>'cik'          AS cik,
+       count(*) OVER ()                      AS total_rows
 FROM read_json_auto('local-landing/edgar/filing_index/logical_date=2026-07-29/*.json.gz')
 LIMIT 10;
 ```

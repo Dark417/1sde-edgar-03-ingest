@@ -11,6 +11,15 @@
 > - Money/fact values are `DECIMAL(38,6)`.
 > - Catalog is `edgar`; schemas are `landing`, `bronze`, `silver`, `gold`.
 
+> ## ⚠️ v1.0.0 — authoritative table shapes
+>
+> The per-table column lists in sections 2–4 below describe the **v0.1.0** shape
+> and are retained for history. The tables that exist in the workspace as of
+> **v1.0.0** are listed in [§6 Table reference](#6-table-reference-v100) at the
+> end of this document, which is generated from the same specs the Liquibase
+> changesets and the Spark `StructType`s are built from and is verified by
+> `tests/test_schema_drift.py`. Where 2–4 and §6 disagree, **§6 wins.**
+
 ---
 
 ## §0 Streams and concepts
@@ -79,8 +88,8 @@ verbatim from the source — no parsing, no renaming, no dedup at landing.
 Landing paths (same filename in both modes, only the prefix differs):
 
 ```
-s3://{raw_bucket}/edgar/{stream}/logical_date={logical_date}/{batch_id}.json.gz
-/Volumes/edgar/landing/edgar/{stream}/logical_date={logical_date}/{batch_id}.json.gz
+s3://{raw_bucket}/edgar/{stream}/dt={logical_date}/{batch_id}.json.gz
+/Volumes/edgar/landing/edgar/{stream}/dt={logical_date}/{batch_id}.json.gz
 ```
 
 ---
@@ -362,7 +371,7 @@ s3://{serving_bucket}/v1/_manifest.json
 ```json
 {
   "generated_at": "2026-07-30T06:41:02Z",
-  "contracts_version": "0.1.0",
+  "contracts_version": "1.0.0",
   "gold_max_filed_date": "2026-07-29",
   "row_counts": {
     "financials_current": 41250,
@@ -375,3 +384,268 @@ s3://{serving_bucket}/v1/_manifest.json
 
 Invariant: `gold_max_filed_date == max(filed_date) in edgar.silver.filing` at export
 time. Repo 5's `/health` returns 503 when `now − gold_max_filed_date > 48h`.
+
+---
+
+## 6. Table reference (v1.0.0)
+
+Every table, exactly as created by `changelog/050-realign-v1.yaml` and mirrored
+by `spark/schemas.py`. The two are diffed on every CI run by the drift test.
+
+**What changed from v0.1.0, and why:** the v0.1.0 shapes were written before any
+consumer existed and disagreed with repo 4 on nearly every table. Metadata
+columns were renamed to what the consumer reads (`_batch_id` →
+`_ingest_batch_id`, `_schema_version` → `_envelope_version`, `_source_system`
+added); bronze gained the provenance columns the landing envelope now carries
+(`resource_id`, `fetched_at`, `logical_date`); `silver.financial_fact` gained
+`decimals`, which is what makes a rounding-only restatement detectable rather
+than a false positive; and quarantine moved from a per-table mirror to one
+generic `record_json` shape so a new table needs no new quarantine DDL.
+
+### `edgar.bronze.filing_index_raw`
+
+| Column | Type | Null |
+|---|---|---|
+| `logical_date` | DATE | no |
+| `resource_id` | STRING | yes |
+| `fetched_at` | TIMESTAMP | yes |
+| `form_type` | STRING | yes |
+| `company_name` | STRING | yes |
+| `cik` | STRING | yes |
+| `date_filed` | STRING | yes |
+| `accession_number` | STRING | yes |
+| `file_name` | STRING | yes |
+| `_ingest_batch_id` | STRING | no |
+| `_ingest_ts` | TIMESTAMP | no |
+| `_source_file` | STRING | no |
+| `_source_system` | STRING | no |
+| `_envelope_version` | STRING | no |
+| `_rescued_data` | STRING | yes |
+
+### `edgar.bronze.company_submissions_raw`
+
+| Column | Type | Null |
+|---|---|---|
+| `logical_date` | DATE | no |
+| `resource_id` | STRING | yes |
+| `fetched_at` | TIMESTAMP | yes |
+| `cik` | STRING | yes |
+| `payload_json` | STRING | yes |
+| `_ingest_batch_id` | STRING | no |
+| `_ingest_ts` | TIMESTAMP | no |
+| `_source_file` | STRING | no |
+| `_source_system` | STRING | no |
+| `_envelope_version` | STRING | no |
+| `_rescued_data` | STRING | yes |
+
+### `edgar.bronze.company_concept_raw`
+
+| Column | Type | Null |
+|---|---|---|
+| `logical_date` | DATE | no |
+| `resource_id` | STRING | yes |
+| `fetched_at` | TIMESTAMP | yes |
+| `cik` | STRING | yes |
+| `taxonomy` | STRING | yes |
+| `tag` | STRING | yes |
+| `payload_json` | STRING | yes |
+| `_ingest_batch_id` | STRING | no |
+| `_ingest_ts` | TIMESTAMP | no |
+| `_source_file` | STRING | no |
+| `_source_system` | STRING | no |
+| `_envelope_version` | STRING | no |
+| `_rescued_data` | STRING | yes |
+
+### `edgar.silver.filing`
+
+| Column | Type | Null |
+|---|---|---|
+| `accession_number` | STRING | no |
+| `cik` | STRING | no |
+| `company_name` | STRING | yes |
+| `form_type` | STRING | no |
+| `base_form_type` | STRING | no |
+| `is_amendment` | BOOLEAN | no |
+| `filed_date` | DATE | no |
+| `primary_doc_url` | STRING | yes |
+| `logical_date` | DATE | no |
+| `_first_seen_ts` | TIMESTAMP | no |
+| `_last_seen_ts` | TIMESTAMP | no |
+| `_ingest_batch_id` | STRING | no |
+| `_source_file` | STRING | yes |
+
+### `edgar.silver.company`
+
+| Column | Type | Null |
+|---|---|---|
+| `cik` | STRING | no |
+| `company_name` | STRING | yes |
+| `sic` | STRING | yes |
+| `sic_description` | STRING | yes |
+| `ein` | STRING | yes |
+| `entity_type` | STRING | yes |
+| `state_of_incorporation` | STRING | yes |
+| `fiscal_year_end` | STRING | yes |
+| `tickers` | ARRAY<STRING> | yes |
+| `exchanges` | ARRAY<STRING> | yes |
+| `former_names` | ARRAY<STRING> | yes |
+| `valid_from` | DATE | no |
+| `valid_to` | DATE | yes |
+| `is_current` | BOOLEAN | no |
+| `_hash_diff` | STRING | no |
+| `_first_seen_ts` | TIMESTAMP | no |
+| `_last_seen_ts` | TIMESTAMP | no |
+| `_ingest_batch_id` | STRING | no |
+| `_source_file` | STRING | yes |
+
+### `edgar.silver.financial_fact`
+
+| Column | Type | Null |
+|---|---|---|
+| `cik` | STRING | no |
+| `taxonomy` | STRING | no |
+| `concept_tag` | STRING | no |
+| `concept_canonical` | STRING | yes |
+| `unit` | STRING | no |
+| `period_start` | DATE | yes |
+| `period_end` | DATE | no |
+| `period_type` | STRING | no |
+| `accession_number` | STRING | no |
+| `value` | DECIMAL(38,6) | yes |
+| `decimals` | INT | yes |
+| `fiscal_year` | INT | yes |
+| `fiscal_period` | STRING | yes |
+| `form_type` | STRING | yes |
+| `filed_date` | DATE | no |
+| `frame` | STRING | yes |
+| `logical_date` | DATE | no |
+| `_first_seen_ts` | TIMESTAMP | no |
+| `_last_seen_ts` | TIMESTAMP | no |
+| `_ingest_batch_id` | STRING | no |
+| `_source_file` | STRING | yes |
+
+### `edgar.silver.filing_quarantine`
+
+| Column | Type | Null |
+|---|---|---|
+| `_dq_record_id` | STRING | no |
+| `_dq_run_id` | STRING | no |
+| `_dq_check_name` | STRING | no |
+| `_dq_failure_reason` | STRING | no |
+| `_quarantined_at` | TIMESTAMP | no |
+| `_source_table` | STRING | no |
+| `_source_file` | STRING | yes |
+| `_ingest_batch_id` | STRING | yes |
+| `record_json` | STRING | no |
+
+### `edgar.silver.company_quarantine`
+
+| Column | Type | Null |
+|---|---|---|
+| `_dq_record_id` | STRING | no |
+| `_dq_run_id` | STRING | no |
+| `_dq_check_name` | STRING | no |
+| `_dq_failure_reason` | STRING | no |
+| `_quarantined_at` | TIMESTAMP | no |
+| `_source_table` | STRING | no |
+| `_source_file` | STRING | yes |
+| `_ingest_batch_id` | STRING | yes |
+| `record_json` | STRING | no |
+
+### `edgar.silver.financial_fact_quarantine`
+
+| Column | Type | Null |
+|---|---|---|
+| `_dq_record_id` | STRING | no |
+| `_dq_run_id` | STRING | no |
+| `_dq_check_name` | STRING | no |
+| `_dq_failure_reason` | STRING | no |
+| `_quarantined_at` | TIMESTAMP | no |
+| `_source_table` | STRING | no |
+| `_source_file` | STRING | yes |
+| `_ingest_batch_id` | STRING | yes |
+| `record_json` | STRING | no |
+
+### `edgar.gold.financials_current`
+
+| Column | Type | Null |
+|---|---|---|
+| `cik` | STRING | no |
+| `company_name` | STRING | yes |
+| `concept_canonical` | STRING | no |
+| `unit` | STRING | no |
+| `period_start` | DATE | yes |
+| `period_end` | DATE | no |
+| `period_type` | STRING | no |
+| `value` | DECIMAL(38,6) | yes |
+| `decimals` | INT | yes |
+| `fiscal_year` | INT | yes |
+| `fiscal_period` | STRING | yes |
+| `accession_number` | STRING | no |
+| `form_type` | STRING | yes |
+| `filed_date` | DATE | no |
+| `assertion_count` | INT | no |
+| `was_restated` | BOOLEAN | no |
+| `_generated_at` | TIMESTAMP | no |
+| `_run_id` | STRING | no |
+
+### `edgar.gold.restatement_event`
+
+| Column | Type | Null |
+|---|---|---|
+| `restatement_id` | STRING | no |
+| `cik` | STRING | no |
+| `company_name` | STRING | yes |
+| `concept_canonical` | STRING | no |
+| `unit` | STRING | no |
+| `period_start` | DATE | yes |
+| `period_end` | DATE | no |
+| `period_type` | STRING | no |
+| `original_accession_number` | STRING | no |
+| `original_form_type` | STRING | yes |
+| `original_filed_date` | DATE | no |
+| `original_value` | DECIMAL(38,6) | no |
+| `original_decimals` | INT | yes |
+| `restated_accession_number` | STRING | no |
+| `restated_form_type` | STRING | yes |
+| `restated_filed_date` | DATE | no |
+| `restated_value` | DECIMAL(38,6) | no |
+| `restated_decimals` | INT | yes |
+| `delta_abs` | DECIMAL(38,6) | no |
+| `delta_pct` | DOUBLE | yes |
+| `materiality_band` | STRING | no |
+| `days_to_restatement` | INT | no |
+| `_generated_at` | TIMESTAMP | no |
+| `_run_id` | STRING | no |
+
+### `edgar.gold.filing_activity_daily`
+
+| Column | Type | Null |
+|---|---|---|
+| `filed_date` | DATE | no |
+| `base_form_type` | STRING | no |
+| `filing_count` | INT | no |
+| `amendment_count` | INT | no |
+| `distinct_cik_count` | INT | no |
+| `_generated_at` | TIMESTAMP | no |
+| `_run_id` | STRING | no |
+
+### `edgar.gold.company_profile`
+
+| Column | Type | Null |
+|---|---|---|
+| `cik` | STRING | no |
+| `company_name` | STRING | yes |
+| `sic` | STRING | yes |
+| `sic_description` | STRING | yes |
+| `entity_type` | STRING | yes |
+| `state_of_incorporation` | STRING | yes |
+| `fiscal_year_end` | STRING | yes |
+| `tickers` | ARRAY<STRING> | yes |
+| `exchanges` | ARRAY<STRING> | yes |
+| `filing_count` | INT | no |
+| `first_filed_date` | DATE | yes |
+| `last_filed_date` | DATE | yes |
+| `restatement_count` | INT | no |
+| `_generated_at` | TIMESTAMP | no |
+| `_run_id` | STRING | no |

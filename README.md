@@ -15,14 +15,19 @@ verbatim.
 ## Quick start (local)
 
 The production path (EDGAR → S3 → Databricks) needs repo 2's AWS
-infrastructure. Until that exists, the working mode is local: pull a small
-subset to disk and load it into tables by hand. See
+infrastructure — applied, but the schedule is disabled and the remote path has
+not had its first validated run. Until then the working mode is local: pull a
+small subset to disk and load it into tables by hand. See
 [`docs/04-local-workflow.md`](docs/04-local-workflow.md).
 
 ```bash
 uv venv --python 3.11 && source .venv/bin/activate
-uv pip install /path/to/1sde-edgar-01-contracts   # repo 1
-uv pip install -e ".[dev]"
+
+# repo 1's contracts wheel — from its GitHub release (not on PyPI); the tag
+# must match the pin in pyproject.toml
+gh release download v1.1.0 --repo Dark417/1sde-edgar-01-contracts \
+  --pattern 'edgar_lakehouse_contracts-*.whl' --dir wheels
+uv pip install --find-links wheels -e ".[dev]"
 
 # The only thing that must be set. No AWS, no SSM, no bucket.
 export SEC_USER_AGENT="edgar-lakehouse-demo you@example.com"   # must contain an @
@@ -31,10 +36,11 @@ python -m ingest.cli config-check
 python -m ingest.cli run --stream filing_index --logical-date 2026-07-29
 ```
 
-**Local is the default.** Repo 2's AWS infrastructure does not exist yet, so the
-path that works is the path that needs no configuration. The S3 + Volume path is
-opt-in via `--remote` (or `LOCAL_ONLY=false`), and asking for it without a
-`RAW_BUCKET` is a hard exit 2 — it never quietly downgrades to a local write.
+**Local is the default.** It is the only path validated end to end so far, and
+the path that works should be the one that needs no configuration. The S3 +
+Volume path is opt-in via `--remote` (or `LOCAL_ONLY=false`), and asking for it
+without a `RAW_BUCKET` is a hard exit 2 — it never quietly downgrades to a
+local write.
 
 Output is gzip NDJSON, one landing envelope per line:
 
