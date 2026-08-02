@@ -72,10 +72,25 @@ catalog/schemas before repo 1's `liquibase update` can run.
     a stale directory during a rename, and repo 4 vendored a private copy of
     repo 1's contracts — which then silently disagreed with repo 1 on all eleven
     envelope field names.
-12. **End every chat response with a status block, in bullets.** Prose summaries
-    hide the two things that actually matter — what is blocked, and what the user
-    still has to decide. Four headings, in this order, and omit a heading only
-    when it is genuinely empty:
+12. **End every chat response with BOTH summaries, in this order.** They do
+    different jobs and neither replaces the other:
+
+    **(a) Your own summary — write it however the content deserves.** Prose,
+    a table, a diagram, whatever explains it best. This is where the reasoning,
+    the caveats, the "here is why this was harder than it looked", and the
+    things that do not fit a bucket belong. Do not flatten it to fit a template.
+
+    **(b) The structured status block below.** Freeform writing loses things:
+    an unanswered question slides away when the conversation moves on, and a
+    blocker reads like a footnote. The block is the guarantee that nothing is
+    dropped, and it is scannable in three seconds.
+
+    Yes, this repeats information. That is the point — (a) is for understanding,
+    (b) is for not missing anything. Keep (b) terse precisely because (a)
+    already carried the nuance; do not re-explain, just state status.
+
+    The status block has four headings, in this order, and a heading is omitted
+    only when it is genuinely empty:
 
     - **Decisions needed from you** — anything the agent cannot or should not
       settle alone. Name the options and give a recommendation; do not just
