@@ -8,10 +8,11 @@ on:
 env:
   PYTHON_VERSION: "3.11"
   AWS_REGION: us-east-1
-  # Repo 1 is private and publishes no PyPI package, so the pinned contracts
-  # wheel has to come from somewhere. See "Obtain the pinned contracts wheel".
+  # Repo 1 publishes no PyPI package, so the pinned contracts wheel has to come
+  # from somewhere. See "Obtain the pinned contracts wheel". Repo 1 is public, so
+  # building it from source needs no credential at all — which is what keeps this
+  # job green before any AWS or Databricks secret exists.
   CONTRACTS_REPO: Dark417/1sde-edgar-01-contracts
-  CONTRACTS_TOKEN: ${{ secrets.CONTRACTS_REPO_TOKEN }}
   # Repo 1 has no tags yet, so this defaults to its default branch — which
   # conflicts with "never depend on main, always an exact pinned version"
   # (AGENTS.global.md law 1). Set the repository variable CONTRACTS_REF to a tag
@@ -80,20 +81,19 @@ jobs:
           aws s3 cp "$WHEELS_PREFIX" wheels/ --recursive --exclude '*' \
             --include 'edgar_lakehouse_contracts-*.whl'
 
-      # Source 2 (interim): build it from repo 1 at the pinned version. Repo 1
-      # is private, so this needs a read-only token; without one the step is
-      # skipped and the guard below explains what to configure.
+      # Source 2 (interim, and the default today): build it from repo 1 at the
+      # pinned ref. Repo 1 is public, so this needs no token and always runs when
+      # S3 is not configured — the wheel is ~13 KB and builds in seconds.
       - name: Check out repo 1
-        if: env.CONTRACTS_TOKEN != ''
+        if: vars.AWS_OIDC_ROLE_ARN == ''
         uses: actions/checkout@v4
         with:
           repository: ${{ env.CONTRACTS_REPO }}
           ref: ${{ env.CONTRACTS_REF }}
-          token: ${{ env.CONTRACTS_TOKEN }}
           path: .contracts-src
 
       - name: Build the contracts wheel from repo 1
-        if: env.CONTRACTS_TOKEN != ''
+        if: vars.AWS_OIDC_ROLE_ARN == ''
         run: |
           mkdir -p wheels
           echo "building contracts from ${CONTRACTS_REPO}@${CONTRACTS_REF:-<default branch>}"
@@ -101,15 +101,16 @@ jobs:
 
       # Fail loudly and actionably rather than with an opaque resolver error.
       - name: Verify the contracts wheel is present
+        env:
+          AWS_OIDC_ROLE_ARN: ${{ vars.AWS_OIDC_ROLE_ARN }}
         run: |
           mkdir -p wheels
           PIN=$(grep -oE 'edgar-lakehouse-contracts==[0-9.]+' pyproject.toml | cut -d= -f3)
           if ! ls wheels/edgar_lakehouse_contracts-*.whl >/dev/null 2>&1; then
             echo "::error::Cannot obtain edgar-lakehouse-contracts==${PIN}."
-            echo "It is not on PyPI, and repo 1 is private with no tags or releases."
-            echo "Configure ONE of:"
-            echo "  - repository variable AWS_OIDC_ROLE_ARN (once repo 2 publishes the S3 wheels prefix), or"
-            echo "  - repository secret CONTRACTS_REPO_TOKEN, a read-only token for ${CONTRACTS_REPO}."
+            echo "It is not on PyPI. Both sources failed:"
+            echo "  - S3: repository variable AWS_OIDC_ROLE_ARN is '${AWS_OIDC_ROLE_ARN:-<unset>}'"
+            echo "  - source build: ${CONTRACTS_REPO}@${CONTRACTS_REF:-<default branch>} did not produce a wheel"
             exit 1
           fi
           # The pin is the contract; a wheel that does not match it is drift,
@@ -137,9 +138,17 @@ jobs:
       - name: pytest
         run: .venv/bin/pytest
 
+  # Publishing the container is opt-in: it needs repo 2 applied (ECR repo, ECS task
+  # family and the SSM parameters that name them) plus an OIDC role to assume. Set the
+  # repository variable AWS_OIDC_ROLE_ARN and this job lights up on the next push to
+  # main. Until then it skips, so an unprovisioned account reads as "not deployed yet"
+  # rather than as a broken build.
   image:
     needs: quality
-    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    if: >-
+      github.ref == 'refs/heads/main'
+      && github.event_name == 'push'
+      && vars.AWS_OIDC_ROLE_ARN != ''
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
