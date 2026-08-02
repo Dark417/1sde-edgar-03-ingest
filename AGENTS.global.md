@@ -72,7 +72,39 @@ catalog/schemas before repo 1's `liquibase update` can run.
     a stale directory during a rename, and repo 4 vendored a private copy of
     repo 1's contracts — which then silently disagreed with repo 1 on all eleven
     envelope field names.
-12. **Every AWS resource lives in `us-east-2`, and this is not a preference.** The
+12. **End every chat response with a status block, in bullets.** Prose summaries
+    hide the two things that actually matter — what is blocked, and what the user
+    still has to decide. Four headings, in this order, and omit a heading only
+    when it is genuinely empty:
+
+    - **Decisions needed from you** — anything the agent cannot or should not
+      settle alone. Name the options and give a recommendation; do not just
+      raise a question.
+    - **Blocking / to fix** — what is broken right now, and whether it blocks
+      the next step. Mark each as blocking or not; "found four issues" is
+      useless if three are cosmetic.
+    - **Previous round** — for each question or todo raised last turn: answered,
+      done, or still open. Never let an unanswered question silently disappear
+      because the conversation moved on.
+    - **Remaining for this thread's goal** — the todos still standing between
+      here and this thread's objective, not a general backlog.
+
+    **Every bullet starts with a status emoji**, so severity is readable without
+    parsing the sentence:
+
+    | Emoji | Means |
+    |---|---|
+    | ✅ | done and verified — not "ran without error", but checked |
+    | ❌ | broken **and blocking** the next step |
+    | ⚠️ | wrong or risky, **not** blocking — a cosmetic defect and a data-loss risk must not look alike |
+    | ❓ | open question or decision awaiting the user |
+    | ⏳ | in progress, or waiting on something external (a CI run, an AWS bootstrap, another thread) |
+    | 🔵 | queued and not started — a todo with nothing wrong with it |
+
+    Never use ✅ for something merely attempted. Verify claims before they enter
+    this block: a status line asserting something is done, when it was only
+    attempted, is worse than no status line at all.
+13. **Every AWS resource lives in `us-east-2`, and this is not a preference.** The
     Unity Catalog metastore is `metastore_aws_us_east_2`; verified live on
     2026-08-01 via `databricks metastores get`, which returns `region: us-east-2`
     and `global_metastore_id: aws:us-east-2:<METASTORE_ID>`.
