@@ -112,11 +112,11 @@ import in repo 5 is a design failure, enforced by test and CI grep.
 
 | # | Repo | Owns | Publishes |
 |---|---|---|---|
-| 1 | `1sde-databricks-edgar-01-contracts` | DDL changelogs, `edgar_lakehouse_contracts`, drift test | wheel + `CONTRACTS_VERSION` |
-| 2 | `1sde-databricks-edgar-02-infra` | Terraform: AWS + workspace objects | SSM `/edgar-lakehouse/*` |
-| 3 | `1sde-databricks-edgar-03-ingest` | EDGAR client, sinks, container | landing objects, image |
-| 4 | `1sde-databricks-edgar-04-pipelines` | bronze/silver/gold jobs, export | serving Parquet + manifest |
-| 5 | `1sde-databricks-edgar-05-serving` | FastAPI + DuckDB + UI | public URL |
+| 1 | `1sde-edgar-01-contracts` | DDL changelogs, `edgar_lakehouse_contracts`, drift test | wheel + `CONTRACTS_VERSION` |
+| 2 | `1sde-edgar-02-infra` | Terraform: AWS + workspace objects | SSM `/edgar-lakehouse/*` |
+| 3 | `1sde-edgar-03-ingest` | EDGAR client, sinks, container | landing objects, image |
+| 4 | `1sde-edgar-04-pipelines` | bronze/silver/gold jobs, export | serving Parquet + manifest |
+| 5 | `1sde-edgar-05-serving` | FastAPI + DuckDB + UI | public URL |
 
 Build order 1→2→3→4→5 with one backward edge: repo 2 creates catalog/schemas, then
 repo 1's `liquibase update` runs. Config handoff is SSM Parameter Store, never

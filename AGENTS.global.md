@@ -13,11 +13,11 @@ financial facts, split into five repos with one-directional dependencies:
 
 | # | Repo | Role |
 |---|---|---|
-| 1 | `1sde-databricks-edgar-01-contracts` | Liquibase DDL + Python schema package `edgar_lakehouse_contracts` + schema-drift test |
-| 2 | `1sde-databricks-edgar-02-infra` | Terraform: AWS + Databricks workspace objects + SSM interface |
-| 3 | `1sde-databricks-edgar-03-ingest` | EDGAR → S3 (system of record) + Volume (transport); containerized batch CLI |
-| 4 | `1sde-databricks-edgar-04-pipelines` | bronze → silver → gold → Parquet serving export (Databricks Jobs) |
-| 5 | `1sde-databricks-edgar-05-serving` | FastAPI + DuckDB over the Parquet export; public demo UI |
+| 1 | `1sde-edgar-01-contracts` | Liquibase DDL + Python schema package `edgar_lakehouse_contracts` + schema-drift test |
+| 2 | `1sde-edgar-02-infra` | Terraform: AWS + Databricks workspace objects + SSM interface |
+| 3 | `1sde-edgar-03-ingest` | EDGAR → S3 (system of record) + Volume (transport); containerized batch CLI |
+| 4 | `1sde-edgar-04-pipelines` | bronze → silver → gold → Parquet serving export (Databricks Jobs) |
+| 5 | `1sde-edgar-05-serving` | FastAPI + DuckDB over the Parquet export; public demo UI |
 
 Build order 1→2→3→4→5, with one documented backward edge: repo 2 creates the
 catalog/schemas before repo 1's `liquibase update` can run.

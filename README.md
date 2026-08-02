@@ -1,4 +1,4 @@
-# 1sde-databricks-edgar-03-ingest
+# 1sde-edgar-03-ingest
 
 Repo 3 of 5 in the **edgar lakehouse**: a batch CLI that fetches from SEC EDGAR
 and writes raw records to the landing zone. It is the only component in the
@@ -21,7 +21,7 @@ subset to disk and load it into tables by hand. See
 
 ```bash
 uv venv --python 3.11 && source .venv/bin/activate
-uv pip install /path/to/1sde-databricks-edgar-01-contracts   # repo 1
+uv pip install /path/to/1sde-edgar-01-contracts   # repo 1
 uv pip install -e ".[dev]"
 
 # The only thing that must be set. No AWS, no SSM, no bucket.

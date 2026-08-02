@@ -1,9 +1,9 @@
-# Repo 3 / 5 — `1sde-databricks-edgar-03-ingest`
+# Repo 3 / 5 — `1sde-edgar-03-ingest`
 
 > Copy to repo root as `AGENTS.md`. Sections 0–8 are agent instructions. Section 9 is
 > yours, by hand. Section 10 is what repo 4 consumes.
 >
-> GitHub: `github.com/Dark417/1sde-databricks-edgar-03-ingest`
+> GitHub: `github.com/Dark417/1sde-edgar-03-ingest`
 > Build order position: **3 of 5.** Requires repos 1 and 2 complete.
 
 ---
@@ -91,7 +91,7 @@ a container that runs for ninety seconds).
 ## 4. Layered structure
 
 ```
-1sde-databricks-edgar-03-ingest/
+1sde-edgar-03-ingest/
 ├── AGENTS.md
 ├── pyproject.toml
 ├── Dockerfile
@@ -305,9 +305,9 @@ Auth: OIDC role from repo 2. No long-lived AWS keys, ever.
 
 ### 9.1 Create the repo
 ```bash
-gh repo create Dark417/1sde-databricks-edgar-03-ingest \
+gh repo create Dark417/1sde-edgar-03-ingest \
   --private --add-readme --gitignore Python --license mit --clone
-cd 1sde-databricks-edgar-03-ingest
+cd 1sde-edgar-03-ingest
 mkdir -p docs && cp ../design/00-design-doc.md ../design/02-data-contracts.md docs/
 ```
 

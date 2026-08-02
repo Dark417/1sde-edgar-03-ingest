@@ -10,7 +10,7 @@ env:
   AWS_REGION: us-east-1
   # Repo 1 is private and publishes no PyPI package, so the pinned contracts
   # wheel has to come from somewhere. See "Obtain the pinned contracts wheel".
-  CONTRACTS_REPO: Dark417/1sde-databricks-edgar-01-contracts
+  CONTRACTS_REPO: Dark417/1sde-edgar-01-contracts
   CONTRACTS_TOKEN: ${{ secrets.CONTRACTS_REPO_TOKEN }}
   # Repo 1 has no tags yet, so this defaults to its default branch — which
   # conflicts with "never depend on main, always an exact pinned version"

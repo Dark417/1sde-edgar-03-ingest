@@ -19,7 +19,7 @@ uv venv --python 3.11
 source .venv/bin/activate
 
 # repo 1's contracts wheel — built from a local clone until the S3 wheels prefix exists
-git clone https://github.com/Dark417/1sde-databricks-edgar-01-contracts /tmp/contracts
+git clone https://github.com/Dark417/1sde-edgar-01-contracts /tmp/contracts
 uv pip install /tmp/contracts
 uv pip install -e ".[dev]"
 ```
