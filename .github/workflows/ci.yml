@@ -194,8 +194,19 @@ jobs:
           ECR=$(aws ssm get-parameter --name /edgar-lakehouse/ecr/ingest_repo \
             --query Parameter.Value --output text)
           docker build -t "$ECR:${GITHUB_SHA::12}" .
-          docker push "$ECR:${GITHUB_SHA::12}"
-          DIGEST=$(docker inspect --format='{{index .RepoDigests 0}}' "$ECR:${GITHUB_SHA::12}")
+          # ECR tag immutability makes a rerun of the same commit unable to
+          # push: the rebuild is not byte-identical, so the tag rejects it.
+          # The image already in ECR for this commit is the artifact of
+          # record -- take its digest instead of failing the rerun.
+          if docker push "$ECR:${GITHUB_SHA::12}"; then
+            DIGEST=$(docker inspect --format='{{index .RepoDigests 0}}' "$ECR:${GITHUB_SHA::12}")
+          else
+            SHA=$(aws ecr describe-images --repository-name "${ECR##*/}" \
+              --image-ids imageTag="${GITHUB_SHA::12}" \
+              --query 'imageDetails[0].imageDigest' --output text)
+            [ "$SHA" != "None" ] && [ -n "$SHA" ] || { echo "::error::push failed and no existing image for this tag"; exit 1; }
+            DIGEST="${ECR}@${SHA}"
+          fi
           echo "digest=$DIGEST" >> "$GITHUB_OUTPUT"
 
       # Image size is a gate, not a nice-to-have: this container runs for ~90
