@@ -1,4 +1,4 @@
-# edgar-lakehouse — global rules (all five repos)
+# edgar-lakehouse — global rules (all six repos)
 
 > This file governs every repo in the project. Each repo carries its own `AGENTS.md`
 > with repo-specific instructions; when the two disagree, the repo file wins for that
@@ -6,10 +6,31 @@
 > `docs/02-data-contracts.md`) disagree, **stop and report the conflict** — do not pick
 > a side silently.
 
+## How these rules reach an agent
+
+This file is the **only** copy that is edited. It is propagated verbatim into
+every repo as `AGENTS.global.md` by `scripts/sync-rules.sh`.
+
+The mechanism matters, because it silently failed once: agents auto-load
+`AGENTS.md` from whichever repo they are opened in, and **`AGENTS.global.md` is
+not a filename anything discovers**. Copying the rules into six repos achieved
+nothing on its own — a thread working inside a single repo never read them.
+
+So two things are required, and both are checked:
+
+1. **Every repo's `AGENTS.md` opens with a pointer** to `AGENTS.global.md`,
+   marked as required reading. A repo without that pointer has no global rules.
+2. **Every copy is byte-identical to this file.** `./scripts/sync-rules.sh
+   --check` fails on drift or a missing pointer; run it after editing this file,
+   and re-propagate with `./scripts/sync-rules.sh`.
+
+Order of reading, for an agent starting in any repo: `AGENTS.global.md` →
+that repo's `AGENTS.md` → the authoritative docs in `docs/`.
+
 ## The project in one paragraph
 
 A Databricks (AWS, Free Edition) medallion lakehouse over SEC EDGAR filings and XBRL
-financial facts, split into five repos with one-directional dependencies:
+financial facts, split into six repos with one-directional dependencies:
 
 | # | Repo | Role |
 |---|---|---|
@@ -18,8 +39,9 @@ financial facts, split into five repos with one-directional dependencies:
 | 3 | `1sde-edgar-03-ingest` | EDGAR → S3 (system of record) + Volume (transport); containerized batch CLI |
 | 4 | `1sde-edgar-04-pipelines` | bronze → silver → gold → Parquet serving export (Databricks Jobs) |
 | 5 | `1sde-edgar-05-serving` | FastAPI + DuckDB over the Parquet export; public demo UI |
+| 6 | `1sde-edgar-06-chatbot` | LangGraph agent answering natural-language questions over gold |
 
-Build order 1→2→3→4→5, with one documented backward edge: repo 2 creates the
+Build order 1→2→3→4→5→6, with one documented backward edge: repo 2 creates the
 catalog/schemas before repo 1's `liquibase update` can run.
 
 ## Cross-repo laws
@@ -27,10 +49,23 @@ catalog/schemas before repo 1's `liquibase update` can run.
 1. **Repos depend only on repo 1's published wheel and repo 2's SSM parameters.**
    Never on each other's source. Never on `main` — always an exact pinned version
    (`==`, not `>=`).
-2. **One owner per object.** Tables: Liquibase (repo 1). Catalog/schemas/volume/jobs:
-   Terraform (repo 2). Landing objects: ingest (repo 3). Delta rows: pipelines
+2. **One owner per object.** Tables: Liquibase (repo 1). Catalog, schemas,
+   volumes, grants: Terraform (repo 2). **Databricks job definitions: repo 4's
+   Asset Bundle.** Landing objects: ingest (repo 3). Delta rows: pipelines
    (repo 4). Parquet export: repo 4, read by repo 5. If two repos would touch the
    same object, the design is wrong — stop.
+
+   *Jobs moved from repo 2 to repo 4 on 2026-08-02, and the reason is worth
+   keeping.* The tempting analogy is ECS: repo 2 declares the task definition,
+   repo 3 supplies the image, and they stay independent because the task
+   definition references the image by a single URI. **A Databricks job has no
+   such seam.** Its tasks name the package, the entry point, the parameters and
+   the dependency edges — that is the code's interface, not a container to fill.
+   Declaring it from repo 2 meant restating repo 4's internals across a repo
+   boundary, and every field was wrong: wrong wheel name, wrong package, six
+   invented entry points against a single real dispatcher, six tasks against
+   four. The job was live and would have failed on first run. Asset Bundles
+   exist so the task graph lives beside the code that implements it.
 3. **No hardcoded ARNs, hosts, bucket names, or paths** outside repos 1–2. Config
    resolution is `env var → SSM → fail with a message naming the missing key`.
 4. **`cik` is a `STRING` everywhere, zero-padded to 10.** Never an int, in any repo.
