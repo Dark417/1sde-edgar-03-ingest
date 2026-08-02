@@ -43,6 +43,11 @@ _WHITESPACE: Final[re.Pattern[str]] = re.compile(r"\s+")
 _DIGITS: Final[re.Pattern[str]] = re.compile(r"^\d+$")
 _YYYYMMDD: Final[re.Pattern[str]] = re.compile(r"^\d{8}$")
 
+# edgar/data/<cik>/<accession>.txt -- the only place the daily index carries an
+# accession number. Anchored on the whole string so a layout change surfaces as a
+# raised IndexFormatChanged rather than a silently empty key.
+_ACCESSION_IN_PATH: Final[re.Pattern[str]] = re.compile(r"/(\d{10}-\d{2}-\d{6})\.txt$")
+
 
 def parse_form_index(text: str) -> Iterator[FilingIndexRecord]:
     """Parse a daily form index into raw records.
@@ -119,10 +124,20 @@ def _parse_row(line: str, line_number: int) -> FilingIndexRecord:
             f"is not YYYYMMDD ({date_filed!r}) - the fixed-width column boundaries have shifted"
         )
 
+    accession_match = _ACCESSION_IN_PATH.search(file_name)
+    if accession_match is None:
+        raise IndexFormatChanged(
+            f"line {line_number}: file_name column [{_FILE_NAME.start}:] does not end in "
+            f"/<accession>.txt ({file_name!r}) - either the boundaries have shifted or EDGAR "
+            "changed the archive path layout. The accession is the filing's natural key, so "
+            "emitting the row without one would push the failure into silver."
+        )
+
     return FilingIndexRecord(
         company_name=company_name,
         form_type=form_type,
         cik=cik,
         date_filed=date_filed,
         file_name=file_name,
+        accession_number=accession_match.group(1),
     )

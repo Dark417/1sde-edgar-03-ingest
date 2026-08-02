@@ -72,9 +72,9 @@ paths) without writing anything.
 Output:
 
 ```
-local-landing/edgar/filing_index/dt=2026-07-29/filing_index-20260729-<hash>.json.gz
-local-landing/edgar/company_submissions/dt=2026-07-29/company_submissions-20260729-<hash>.json.gz
-local-landing/edgar/company_concept/dt=2026-07-29/company_concept-20260729-<hash>.json.gz
+local-landing/edgar/filing_index/logical_date=2026-07-29/filing_index-20260729-<hash>.json.gz
+local-landing/edgar/company_submissions/logical_date=2026-07-29/company_submissions-20260729-<hash>.json.gz
+local-landing/edgar/company_concept/logical_date=2026-07-29/company_concept-20260729-<hash>.json.gz
 ```
 
 Each file is gzip NDJSON, one landing envelope per line (data contracts §1).
@@ -82,8 +82,8 @@ Each file is gzip NDJSON, one landing envelope per line (data contracts §1).
 Inspect:
 
 ```bash
-gzip -dc local-landing/edgar/filing_index/dt=2026-07-29/*.json.gz | head -1 | python -m json.tool
-gzip -dc local-landing/edgar/filing_index/dt=2026-07-29/*.json.gz | wc -l
+gzip -dc local-landing/edgar/filing_index/logical_date=2026-07-29/*.json.gz | head -1 | python -m json.tool
+gzip -dc local-landing/edgar/filing_index/logical_date=2026-07-29/*.json.gz | wc -l
 ```
 
 ---
@@ -124,7 +124,7 @@ Then, in a notebook:
 ```python
 from pyspark.sql import functions as F
 
-raw = spark.read.json("/Volumes/edgar/landing/edgar/filing_index/dt=2026-07-29/")
+raw = spark.read.json("/Volumes/edgar/landing/edgar/filing_index/logical_date=2026-07-29/")
 
 bronze = (
     raw.select(
@@ -152,7 +152,7 @@ as one `payload_json` string (data contracts §2.2, §2.3), because those docume
 deeply nested and their shape is not ours to control.
 
 ```python
-raw = spark.read.json("/Volumes/edgar/landing/edgar/company_submissions/dt=2026-07-29/")
+raw = spark.read.json("/Volumes/edgar/landing/edgar/company_submissions/logical_date=2026-07-29/")
 (raw.select(
     F.col("payload.cik").alias("cik"),
     F.to_json("payload").alias("payload_json"),
@@ -174,7 +174,7 @@ SELECT payload->>'form_type'   AS form_type,
        payload->>'company_name' AS company_name,
        payload->>'cik'          AS cik,
        count(*) OVER ()         AS total_rows
-FROM read_json_auto('local-landing/edgar/filing_index/dt=2026-07-29/*.json.gz')
+FROM read_json_auto('local-landing/edgar/filing_index/logical_date=2026-07-29/*.json.gz')
 LIMIT 10;
 ```
 

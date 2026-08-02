@@ -16,6 +16,7 @@ from typing import Any
 import boto3
 import httpx
 import pytest
+from edgar_lakehouse_contracts.envelope import ENVELOPE_FIELDS
 from edgar_lakehouse_contracts.names import Stream, landing_path
 from moto import mock_aws
 from tests.conftest import LOGICAL_DATE
@@ -62,7 +63,7 @@ def test_all_three_sinks_write_identical_bytes(
     S3Sink(BUCKET, client=s3_client).write(Stream.FILING_INDEX, LOGICAL_DATE, envelopes)
     s3_bytes = s3_client.get_object(
         Bucket=BUCKET,
-        Key=f"edgar/filing_index/dt={LOGICAL_DATE.isoformat()}/"
+        Key=f"edgar/filing_index/logical_date={LOGICAL_DATE.isoformat()}/"
         f"{landing_path('s3', Stream.FILING_INDEX, LOGICAL_DATE).rsplit('/', 1)[1]}",
     )["Body"].read()
 
@@ -100,16 +101,8 @@ def test_output_is_gzip_ndjson_one_envelope_per_line(
     assert len(lines) == 5
     for line in lines:
         record = json.loads(line)
-        assert set(record) == {
-            "_stream",
-            "_logical_date",
-            "_batch_id",
-            "_fetched_at",
-            "_source_url",
-            "_schema_version",
-            "payload",
-        }
-        assert record["_logical_date"] == "2026-07-29"  # a date, never a datetime
+        assert set(record) == set(ENVELOPE_FIELDS)
+        assert record["logical_date"] == "2026-07-29"  # a date, never a datetime
 
 
 def test_empty_batch_produces_a_valid_empty_file() -> None:
@@ -140,7 +133,7 @@ def test_local_sink_rerun_leaves_one_file(
     sink = LocalSink(tmp_path)
     sink.write(Stream.FILING_INDEX, LOGICAL_DATE, make_envelopes(4))
     sink.write(Stream.FILING_INDEX, LOGICAL_DATE, make_envelopes(4))
-    directory = tmp_path / "edgar" / "filing_index" / f"dt={LOGICAL_DATE.isoformat()}"
+    directory = tmp_path / "edgar" / "filing_index" / f"logical_date={LOGICAL_DATE.isoformat()}"
     assert len(list(directory.iterdir())) == 1
 
 

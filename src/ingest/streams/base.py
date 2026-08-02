@@ -66,7 +66,9 @@ def build_envelope(
     logical_date: date,
     source_url: str,
     payload: dict[str, Any] | list[Any],
+    resource_id: str,
     fetched_at: datetime | None = None,
+    http_status: int = 200,
 ) -> LandingEnvelope:
     """Wrap a verbatim payload in a landing envelope.
 
@@ -75,15 +77,26 @@ def build_envelope(
     would mean a replay from raw reproduces this repo's logic on the day it ran,
     rather than reproducing history.
 
+    ``resource_id`` is the natural id of the thing fetched — an accession number, a
+    padded CIK, or ``<padded cik>/<concept>``. Bronze dedupes on it, so it must be
+    stable across re-fetches of the same resource and unique within a batch.
+
+    ``http_status`` defaults to 200 because callers only reach this function once a
+    payload has been successfully decoded; a non-200 never produces an envelope. It
+    is explicit rather than hardcoded so a future partial-content or 304 path can
+    record what actually happened.
+
     ``fetched_at`` is metadata only — never used in a key or filename
-    (data contracts §1).
+    (data contracts §1). ``content_sha256`` is derived by ``LandingEnvelope.build``.
     """
-    return LandingEnvelope(
-        _stream=str(stream.value),
-        _logical_date=logical_date,
-        _batch_id=batch_id(stream, logical_date),
-        _fetched_at=fetched_at or datetime.now(UTC),
-        _source_url=source_url,
+    return LandingEnvelope.build(
+        stream=str(stream.value),
+        resource_id=resource_id,
+        logical_date=logical_date,
+        batch_id=batch_id(stream, logical_date),
+        fetched_at=fetched_at or datetime.now(UTC),
+        request_url=source_url,
+        http_status=http_status,
         payload=payload,
     )
 

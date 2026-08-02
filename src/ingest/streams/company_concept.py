@@ -109,6 +109,9 @@ def run(
                         logical_date=logical_date,
                         source_url=client.company_concept_url(cik, TAXONOMY, concept),
                         payload=payload,
+                        # This stream fans out per (company, concept), so neither part
+                        # alone identifies the resource.
+                        resource_id=f"{cik}/{concept}",
                     )
                     if payload is not None
                     else None

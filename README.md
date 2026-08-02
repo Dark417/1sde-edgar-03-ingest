@@ -39,7 +39,7 @@ opt-in via `--remote` (or `LOCAL_ONLY=false`), and asking for it without a
 Output is gzip NDJSON, one landing envelope per line:
 
 ```
-local-landing/edgar/filing_index/dt=2026-07-29/filing_index-20260729-eb4807cfccc9.json.gz
+local-landing/edgar/filing_index/logical_date=2026-07-29/filing_index-20260729-eb4807cfccc9.json.gz
 ```
 
 ## Commands

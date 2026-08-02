@@ -138,7 +138,7 @@ infra, SSM) is not stood up yet.
 Rather than bypass the pipeline for that, a third sink is added:
 
 - `LocalSink` writes the **same bytes** to
-  `{local_landing_dir}/edgar/{stream}/dt={logical_date}/{batch_id}.json.gz`.
+  `{local_landing_dir}/edgar/{stream}/logical_date={logical_date}/{batch_id}.json.gz`.
 - The relative path and filename are taken from
   `names.landing_path("volume", ...)` and re-rooted — **not** recomputed. Repo 1
   remains the only place that knows how a landing path is spelled.

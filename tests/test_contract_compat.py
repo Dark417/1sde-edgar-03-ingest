@@ -6,12 +6,13 @@ and forbidden dependencies are silent until production.
 
 from __future__ import annotations
 
+import json
 import re
 from datetime import date
 from pathlib import Path
 
 import pytest
-from edgar_lakehouse_contracts.envelope import LandingEnvelope
+from edgar_lakehouse_contracts.envelope import ENVELOPE_FIELDS, LandingEnvelope
 
 import ingest
 from ingest.streams.base import build_envelope
@@ -59,14 +60,35 @@ def test_contract_compat_every_envelope_field_exists_upstream() -> None:
         logical_date=date(2026, 7, 29),
         source_url="https://www.sec.gov/example",
         payload={"a": "b"},
+        resource_id="0000320193-26-000123",
     )
     written = set(envelope.model_dump(by_alias=True))
     declared = {field.alias or name for name, field in LandingEnvelope.model_fields.items()}
     assert written <= declared, f"fields not in the pinned contract: {written - declared}"
 
-    # And the fields repo 4 depends on are actually present.
-    for required in ("_batch_id", "_logical_date", "_schema_version", "_stream", "payload"):
-        assert required in written
+    # And the fields repo 4's bronze depends on are actually present. This list is the
+    # reason the test exists: repo 4 parses these names out of the JSON, and a rename
+    # on either side is invisible until bronze produces a table of nulls.
+    for required in ENVELOPE_FIELDS:
+        assert required in written, f"repo 4's bronze reads {required!r} and it is not written"
+
+
+def test_serialized_envelope_matches_the_declared_wire_types() -> None:
+    """The JSON, not the Python model, is what crosses the repo boundary."""
+    envelope = build_envelope(
+        stream=__import__(
+            "edgar_lakehouse_contracts.names", fromlist=["Stream"]
+        ).Stream.FILING_INDEX,
+        logical_date=date(2026, 7, 29),
+        source_url="https://www.sec.gov/example",
+        payload={"a": "b"},
+        resource_id="0000320193-26-000123",
+    )
+    raw = json.loads(envelope.to_json_line())
+    assert set(raw) == set(ENVELOPE_FIELDS)
+    assert isinstance(raw["http_status"], int)
+    assert isinstance(raw["payload_json"], str)
+    assert [k for k in raw if k.startswith("_")] == []
 
 
 def test_no_schema_is_redefined_locally() -> None:

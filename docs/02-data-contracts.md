@@ -79,8 +79,8 @@ verbatim from the source — no parsing, no renaming, no dedup at landing.
 Landing paths (same filename in both modes, only the prefix differs):
 
 ```
-s3://{raw_bucket}/edgar/{stream}/dt={logical_date}/{batch_id}.json.gz
-/Volumes/edgar/landing/edgar/{stream}/dt={logical_date}/{batch_id}.json.gz
+s3://{raw_bucket}/edgar/{stream}/logical_date={logical_date}/{batch_id}.json.gz
+/Volumes/edgar/landing/edgar/{stream}/logical_date={logical_date}/{batch_id}.json.gz
 ```
 
 ---

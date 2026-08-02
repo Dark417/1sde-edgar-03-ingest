@@ -60,6 +60,8 @@ def run(
             logical_date=logical_date,
             source_url=source_url,
             payload=record.model_dump(),
+            # One index row == one filing, so the accession is the natural id.
+            resource_id=record.accession_number,
         )
         for record in records
     ]

@@ -59,6 +59,8 @@ def run(
                 logical_date=logical_date,
                 source_url=client.submissions_url(cik),
                 payload=payload,
+                # One document per company; `cik` is already padded by load_cik_universe.
+                resource_id=cik,
             )
         )
 

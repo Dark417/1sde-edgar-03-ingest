@@ -72,15 +72,18 @@ def test_filing_index_payload_is_verbatim(
     first = json.loads(
         gzip.decompress(Path(summary.sinks[0]).read_bytes()).decode().splitlines()[0]
     )
-    assert first["payload"] == {
+    assert json.loads(first["payload_json"]) == {
         "company_name": "Hartley Opportunity Fund LLC",
         "form_type": "1-SA",
         "cik": "2056463",
         "date_filed": "20260729",
         "file_name": "edgar/data/2056463/0001096906-26-001138.txt",
+        "accession_number": "0001096906-26-001138",
     }
-    assert first["_logical_date"] == "2026-07-29"
-    assert first["_schema_version"] == "1"
+    assert first["logical_date"] == "2026-07-29"
+    assert first["envelope_version"] == "1"
+    # resource_id is what bronze dedupes on, so it has to be the filing's own id.
+    assert first["resource_id"] == "0001096906-26-001138"
 
 
 @respx.mock

@@ -126,6 +126,7 @@ def make_envelopes() -> Callable[[int], list[object]]:
                 logical_date=LOGICAL_DATE,
                 source_url="https://www.sec.gov/example",
                 payload={"cik": f"{i:010d}", "form_type": "10-K"},
+                resource_id=f"{i:010d}-26-000001",
                 fetched_at=datetime(2026, 8, 1, 12, 0, 0, tzinfo=UTC),
             )
             for i in range(count)
