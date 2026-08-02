@@ -5,6 +5,6 @@ schema (those come from ``edgar_lakehouse_contracts``), no Spark, and no
 transformation: payloads pass through verbatim.
 """
 
-__version__ = "0.1.0"
+__version__ = "0.2.0"
 
 __all__ = ["__version__"]

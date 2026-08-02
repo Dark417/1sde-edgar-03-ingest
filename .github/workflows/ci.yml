@@ -20,7 +20,7 @@ env:
   # on every v* tag, and repo 1 is public, so the release asset is the source:
   # exact pinned version, no AWS, no credential. See "Obtain the contracts wheel".
   CONTRACTS_REPO: Dark417/1sde-edgar-01-contracts
-  # The release tag to install. Set as a repository variable (currently v1.1.0)
+  # The release tag to install. Set as a repository variable (currently v1.2.0)
   # and it must agree with the pyproject pin -- the version guard below fails the
   # build if they drift. If the variable is ever unset, CI falls back to building
   # from repo 1's default branch, which violates "always an exact pinned version"

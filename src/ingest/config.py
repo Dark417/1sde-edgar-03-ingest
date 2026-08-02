@@ -14,18 +14,26 @@ import os
 from functools import lru_cache
 from typing import Any, Literal
 
+from edgar_lakehouse_contracts.names import (
+    SSM_DBX_HOST,
+    SSM_DBX_VOLUME_PATH,
+    SSM_LANDING_MODE,
+    SSM_S3_RAW_BUCKET,
+)
 from pydantic import Field, SecretStr, ValidationInfo, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 __all__ = ["ConfigError", "Settings", "load_settings", "resolve_ssm"]
 
 # env var name -> SSM parameter name. Only these fall back to SSM; anything not
-# listed is env-only by design.
+# listed is env-only by design. The parameter names are the contract's, not
+# ours: contracts >=1.2.0 ratifies the SSM keys precisely so producer (repo 2)
+# and consumers can no longer drift apart in silence.
 SSM_FALLBACKS: dict[str, str] = {
-    "RAW_BUCKET": "/edgar-lakehouse/s3/raw_bucket",
-    "DBX_HOST": "/edgar-lakehouse/dbx/host",
-    "VOLUME_PATH": "/edgar-lakehouse/dbx/volume_path",
-    "LANDING_MODE": "/edgar-lakehouse/landing_mode",
+    "RAW_BUCKET": SSM_S3_RAW_BUCKET,
+    "DBX_HOST": SSM_DBX_HOST,
+    "VOLUME_PATH": SSM_DBX_VOLUME_PATH,
+    "LANDING_MODE": SSM_LANDING_MODE,
 }
 
 DEFAULT_LOCAL_LANDING_DIR = "local-landing"
