@@ -48,7 +48,31 @@ catalog/schemas before repo 1's `liquibase update` can run.
 9. **CI gates are grep-able and merciless:** forbidden dependencies and forbidden
    resources are enforced by grep/tests in CI, per repo file.
 10. **When ambiguous, stop and ask.** No guessed schema, no `TODO` placeholders.
-11. **Every AWS resource lives in `us-east-2`, and this is not a preference.** The
+11. **Stay inside your repo. Never edit another repo to make your change work.**
+    Multiple agents/threads work this project in parallel, one repo each. Editing
+    across the boundary is how work gets clobbered, how two copies of the same
+    contract appear, and how a repo's tests start depending on someone's
+    uncommitted local state.
+
+    **You may only write to the repo you were assigned.** For everything else:
+
+    | Situation | Do this — not a cross-repo edit |
+    |---|---|
+    | You need a schema/envelope/name change | Open a **PR against repo 1**, or ask the user. Repo 1 ratifies all shape changes; consumers propose, they do not patch. |
+    | Another repo looks wrong/broken | **Report it to the user.** Do not fix it. It may be deliberate or mid-flight. |
+    | You need a value another repo owns | Read it from SSM / the published wheel / the release URL. Never reach into its source tree. |
+    | You are tempted to copy code from another repo | Stop. That is vendoring, and it is the exact failure this five-repo split exists to prevent. Depend on the published artifact instead. |
+    | The change genuinely spans repos | **Ask the user first**, then do it in one repo at a time, each with its own commit and green CI. |
+
+    **Never commit or push another repo's working tree**, even if it looks
+    finished — an uncommitted file may be a half-done thought, and pushing it
+    publishes someone else's unfinished work and can turn their CI red.
+
+    This rule is not theoretical: a concurrent session once generated repo 2 into
+    a stale directory during a rename, and repo 4 vendored a private copy of
+    repo 1's contracts — which then silently disagreed with repo 1 on all eleven
+    envelope field names.
+12. **Every AWS resource lives in `us-east-2`, and this is not a preference.** The
     Unity Catalog metastore is `metastore_aws_us_east_2`; verified live on
     2026-08-01 via `databricks metastores get`, which returns `region: us-east-2`
     and `global_metastore_id: aws:us-east-2:<METASTORE_ID>`.
@@ -85,7 +109,7 @@ information and they pin the project to one person's tenancy.
 
   | Use | Not |
   |---|---|
-  | `<AWS_ACCOUNT_ID>` (`aws sts get-caller-identity --query Account`) | `<AWS_ACCOUNT_ID>` |
+  | `<AWS_ACCOUNT_ID>` (`aws sts get-caller-identity --query Account`) | a literal 12-digit account id |
   | `<DBX_HOST>` (SSM `/edgar-lakehouse/dbx/host`) | `dbc-xxxxxxxx-xxxx.cloud.databricks.com` |
   | `<WAREHOUSE_ID>` (SQL Warehouses → Connection details) | a literal hex id |
   | `<METASTORE_ID>` (`databricks metastores get`) | a literal uuid |
