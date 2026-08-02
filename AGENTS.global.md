@@ -47,6 +47,17 @@ catalog/schemas before repo 1's `liquibase update` can run.
 9. **CI gates are grep-able and merciless:** forbidden dependencies and forbidden
    resources are enforced by grep/tests in CI, per repo file.
 10. **When ambiguous, stop and ask.** No guessed schema, no `TODO` placeholders.
+11. **Every AWS resource lives in `us-east-2`, and this is not a preference.** The
+    Unity Catalog metastore is `metastore_aws_us_east_2`; verified live on
+    2026-08-01 via `databricks metastores get`, which returns `region: us-east-2`
+    and `global_metastore_id: aws:us-east-2:083f6670-cb9a-4058-9fd5-ed2fd09b1f15`.
+    A workspace can only attach to the metastore in its own region, so the region
+    is fixed by the workspace and is not ours to choose. Buckets, ECR, ECS, SSM
+    and every `configure-aws-credentials` step belong there too — anything
+    elsewhere is cross-region egress on every read, and SSM lookups simply fail
+    with `ParameterNotFound` because parameters are regional. This file said
+    `us-east-1` until 2026-08-01 and repos 1 and 3 inherited it; if you are about
+    to write any other region, you are re-introducing that bug.
 
 ## Conventions
 
@@ -54,4 +65,5 @@ catalog/schemas before repo 1's `liquibase update` can run.
 - Commits: conventional-ish, imperative mood, small.
 - Docs: each repo carries `docs/00-design-doc.md` and `docs/02-data-contracts.md`
   copied from repo 1 (repo 1 is the source of truth for both).
-- GitHub org/user: `Dark417`. AWS region: `us-east-1`.
+- GitHub org/user: `Dark417`. AWS region: `us-east-2` (law 11 — fixed by the
+  metastore, never change it). All five repos are public.

@@ -7,17 +7,24 @@ on:
 
 env:
   PYTHON_VERSION: "3.11"
-  AWS_REGION: us-east-1
+  # us-east-2 is not a preference, it is where the Unity Catalog metastore lives.
+  # Verified live: `databricks metastores get` returns region us-east-2 and
+  # global_metastore_id aws:us-east-2:083f6670-cb9a-4058-9fd5-ed2fd09b1f15. A
+  # workspace can only attach to the metastore in its own region, so every bucket
+  # and every SSM parameter this repo reads belongs here too. This said us-east-1
+  # until 2026-08-01, which would have failed every `ssm get-parameter` with
+  # ParameterNotFound the moment AWS was wired up. Do not change it back.
+  AWS_REGION: us-east-2
   # Repo 1 publishes no PyPI package, so the pinned contracts wheel has to come
-  # from somewhere. See "Obtain the pinned contracts wheel". Repo 1 is public, so
-  # building it from source needs no credential at all — which is what keeps this
-  # job green before any AWS or Databricks secret exists.
+  # from somewhere. Repo 1's `publish` job attaches the wheel to a GitHub release
+  # on every v* tag, and repo 1 is public, so the release asset is the source:
+  # exact pinned version, no AWS, no credential. See "Obtain the contracts wheel".
   CONTRACTS_REPO: Dark417/1sde-edgar-01-contracts
-  # Repo 1 has no tags yet, so this defaults to its default branch — which
-  # conflicts with "never depend on main, always an exact pinned version"
-  # (AGENTS.global.md law 1). Set the repository variable CONTRACTS_REF to a tag
-  # or SHA the moment repo 1 has one; the version guard below is the interim
-  # mitigation, not a substitute.
+  # The release tag to install, e.g. v0.1.0. Repo 1 has no tags yet, so this is
+  # empty and CI falls back to building from source at the default branch --
+  # which conflicts with "never depend on main, always an exact pinned version"
+  # (AGENTS.global.md law 1). Tag repo 1 and set this variable to close that gap;
+  # the version guard below is the interim mitigation, not a substitute.
   CONTRACTS_REF: ${{ vars.CONTRACTS_REF }}
 
 permissions:
@@ -60,57 +67,53 @@ jobs:
           fi
 
       # ---------------------------------------------------------------------
-      # The pinned contracts wheel, in order of preference.
+      # Obtain the contracts wheel.
+      #
+      # Repo 1 is public and its `publish` job attaches the wheel to a GitHub
+      # release on every v* tag, so the release asset is the source of truth: an
+      # exact pinned version, no AWS, no credential, no SSM parameter. This used
+      # to read `/edgar-lakehouse/s3/wheels_prefix`, a parameter repo 2 never
+      # actually publishes -- the S3 path could not have worked as written.
+      #
+      # Until repo 1 is tagged, CONTRACTS_REF is empty and we build from source
+      # at its default branch. That is a known violation of "pin an exact
+      # version" (global law 1); the version guard below is what keeps it honest.
       # ---------------------------------------------------------------------
-      - name: Configure AWS credentials
-        if: vars.AWS_OIDC_ROLE_ARN != ''
-        uses: aws-actions/configure-aws-credentials@v4
-        with:
-          role-to-assume: ${{ vars.AWS_OIDC_ROLE_ARN }}
-          aws-region: ${{ env.AWS_REGION }}
-
-      # Source 1 (production): repo 2's S3 wheels prefix. pip cannot read s3://
-      # directly, so the wheel is copied down first (AGENTS.md §2).
-      - name: Fetch the contracts wheel from S3
-        if: vars.AWS_OIDC_ROLE_ARN != ''
+      - name: Download the pinned contracts wheel from repo 1's release
+        if: env.CONTRACTS_REF != ''
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
           mkdir -p wheels
-          WHEELS_PREFIX=$(aws ssm get-parameter \
-            --name /edgar-lakehouse/s3/wheels_prefix \
-            --query Parameter.Value --output text)
-          aws s3 cp "$WHEELS_PREFIX" wheels/ --recursive --exclude '*' \
-            --include 'edgar_lakehouse_contracts-*.whl'
+          echo "fetching contracts ${CONTRACTS_REF} from ${CONTRACTS_REPO} releases"
+          gh release download "$CONTRACTS_REF" \
+            --repo "$CONTRACTS_REPO" \
+            --pattern 'edgar_lakehouse_contracts-*.whl' \
+            --dir wheels
 
-      # Source 2 (interim, and the default today): build it from repo 1 at the
-      # pinned ref. Repo 1 is public, so this needs no token and always runs when
-      # S3 is not configured — the wheel is ~13 KB and builds in seconds.
       - name: Check out repo 1
-        if: vars.AWS_OIDC_ROLE_ARN == ''
+        if: env.CONTRACTS_REF == ''
         uses: actions/checkout@v4
         with:
           repository: ${{ env.CONTRACTS_REPO }}
-          ref: ${{ env.CONTRACTS_REF }}
           path: .contracts-src
 
-      - name: Build the contracts wheel from repo 1
-        if: vars.AWS_OIDC_ROLE_ARN == ''
+      - name: Build the contracts wheel from repo 1 source
+        if: env.CONTRACTS_REF == ''
         run: |
           mkdir -p wheels
-          echo "building contracts from ${CONTRACTS_REPO}@${CONTRACTS_REF:-<default branch>}"
+          echo "::warning::CONTRACTS_REF is unset, so the contracts wheel is being built from ${CONTRACTS_REPO}@<default branch> rather than a pinned release. Tag repo 1 and set the CONTRACTS_REF repository variable."
           uv build --wheel --out-dir wheels .contracts-src
 
       # Fail loudly and actionably rather than with an opaque resolver error.
       - name: Verify the contracts wheel is present
-        env:
-          AWS_OIDC_ROLE_ARN: ${{ vars.AWS_OIDC_ROLE_ARN }}
         run: |
           mkdir -p wheels
           PIN=$(grep -oE 'edgar-lakehouse-contracts==[0-9.]+' pyproject.toml | cut -d= -f3)
           if ! ls wheels/edgar_lakehouse_contracts-*.whl >/dev/null 2>&1; then
             echo "::error::Cannot obtain edgar-lakehouse-contracts==${PIN}."
-            echo "It is not on PyPI. Both sources failed:"
-            echo "  - S3: repository variable AWS_OIDC_ROLE_ARN is '${AWS_OIDC_ROLE_ARN:-<unset>}'"
-            echo "  - source build: ${CONTRACTS_REPO}@${CONTRACTS_REF:-<default branch>} did not produce a wheel"
+            echo "It is not on PyPI. The source used was:"
+            echo "  ${CONTRACTS_REPO} @ ${CONTRACTS_REF:-<default branch, CONTRACTS_REF unset>}"
             exit 1
           fi
           # The pin is the contract; a wheel that does not match it is drift,
@@ -160,14 +163,23 @@ jobs:
           role-to-assume: ${{ vars.AWS_OIDC_ROLE_ARN }}
           aws-region: ${{ env.AWS_REGION }}
 
-      - name: Fetch the contracts wheel from S3
+      # Same source as the quality job -- repo 1's release asset, or a source build
+      # while repo 1 is untagged. The image must contain the identical wheel the
+      # tests ran against, so these two steps must stay in sync with that job.
+      - name: Obtain the contracts wheel
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
           mkdir -p wheels
-          WHEELS_PREFIX=$(aws ssm get-parameter \
-            --name /edgar-lakehouse/s3/wheels_prefix \
-            --query Parameter.Value --output text)
-          aws s3 cp "$WHEELS_PREFIX" wheels/ --recursive --exclude '*' \
-            --include 'edgar_lakehouse_contracts-*.whl'
+          if [ -n "$CONTRACTS_REF" ]; then
+            gh release download "$CONTRACTS_REF" \
+              --repo "$CONTRACTS_REPO" \
+              --pattern 'edgar_lakehouse_contracts-*.whl' \
+              --dir wheels
+          else
+            git clone --depth 1 "https://github.com/${CONTRACTS_REPO}.git" .contracts-src
+            uv build --wheel --out-dir wheels .contracts-src
+          fi
 
       - uses: aws-actions/amazon-ecr-login@v2
         id: ecr
@@ -198,7 +210,7 @@ jobs:
 
       - name: Update the ECS task definition
         run: |
-          TASK_FAMILY=$(aws ssm get-parameter --name /edgar-lakehouse/ecs/ingest_task_family \
+          TASK_FAMILY=$(aws ssm get-parameter --name /edgar-lakehouse/ecs/task_family \
             --query Parameter.Value --output text)
           aws ecs describe-task-definition --task-definition "$TASK_FAMILY" \
             --query 'taskDefinition' > task-def.json
