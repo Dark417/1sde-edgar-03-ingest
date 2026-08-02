@@ -39,6 +39,7 @@ catalog/schemas before repo 1's `liquibase update` can run.
    order.
 6. **No secrets in git, images, or Terraform state.** Secrets Manager + runtime
    injection only. A PAT or AWS key in a repo is an immediate stop-and-fix.
+   See "Sensitive values" below — **these repos are public**.
 7. **Free Edition constraints are design inputs, not annoyances:** serverless only,
    no account-level API, ≤5 concurrent job tasks, daily quota shutdown, no DLT.
    Anything that ignores them fails at runtime, not plan time.
@@ -50,7 +51,7 @@ catalog/schemas before repo 1's `liquibase update` can run.
 11. **Every AWS resource lives in `us-east-2`, and this is not a preference.** The
     Unity Catalog metastore is `metastore_aws_us_east_2`; verified live on
     2026-08-01 via `databricks metastores get`, which returns `region: us-east-2`
-    and `global_metastore_id: aws:us-east-2:083f6670-cb9a-4058-9fd5-ed2fd09b1f15`.
+    and `global_metastore_id: aws:us-east-2:<METASTORE_ID>`.
     A workspace can only attach to the metastore in its own region, so the region
     is fixed by the workspace and is not ours to choose. Buckets, ECR, ECS, SSM
     and every `configure-aws-credentials` step belong there too — anything
@@ -58,6 +59,59 @@ catalog/schemas before repo 1's `liquibase update` can run.
     with `ParameterNotFound` because parameters are regional. This file said
     `us-east-1` until 2026-08-01 and repos 1 and 3 inherited it; if you are about
     to write any other region, you are re-introducing that bug.
+
+## Sensitive values — these repos are PUBLIC
+
+Every repo is public on GitHub. Assume anything committed is permanently
+readable by anyone, including git history. Three tiers, and the tier decides
+the handling:
+
+### Tier 1 — SECRETS. Never in git, in any form, ever.
+PATs (`dapi…`), AWS access keys (`AKIA…`), passwords, private keys, session
+tokens, `*.tfstate`, `liquibase.properties`, `.env`.
+- Storage: AWS Secrets Manager (runtime) or a **gitignored** local file.
+- CI: GitHub Actions secrets, referenced as `${{ secrets.NAME }}`.
+- A leak is not fixed by deleting the line — **rotate the credential first**,
+  then purge. Assume it was scraped within minutes of the push.
+
+### Tier 2 — IDENTIFIERS. Masked in committed text; resolved at runtime.
+AWS account id, UC metastore id, workspace host, warehouse id, ARNs, ECR URIs,
+concrete bucket names. Not secret on their own, but they are free targeting
+information and they pin the project to one person's tenancy.
+- **In code/config:** never literals — Terraform variables, env vars, or SSM
+  lookups. Config resolution stays `env var → SSM → fail naming the key`.
+- **In docs, comments, and examples:** write a placeholder **plus how to
+  resolve it**, so the doc stays runnable without carrying the value:
+
+  | Use | Not |
+  |---|---|
+  | `<AWS_ACCOUNT_ID>` (`aws sts get-caller-identity --query Account`) | `<AWS_ACCOUNT_ID>` |
+  | `<DBX_HOST>` (SSM `/edgar-lakehouse/dbx/host`) | `dbc-xxxxxxxx-xxxx.cloud.databricks.com` |
+  | `<WAREHOUSE_ID>` (SQL Warehouses → Connection details) | a literal hex id |
+  | `<METASTORE_ID>` (`databricks metastores get`) | a literal uuid |
+
+- **Never lose the reference:** the real values live in
+  `docs/LOCAL-VALUES.md`, which is **gitignored** in every repo and whose
+  template (`docs/LOCAL-VALUES.example.md`) is committed. Every placeholder in
+  a doc must be resolvable either from that file or from the command named
+  beside it.
+
+### Tier 3 — PUBLIC. Commit freely.
+Catalog/schema/table names, bucket *name patterns* (`edgar-lake-raw`), region
+`us-east-2`, package/version strings, the SEC contact email (SEC *requires* a
+real contact in the User-Agent, and it is already the git commit author),
+architecture docs, ADRs. Masking these buys nothing and breaks the docs.
+
+### Enforcement
+- Every repo runs a **secret-scan gate in CI** (`make secret-scan` equivalent:
+  a grep for Tier-1 patterns and known Tier-2 literals) and fails the build on
+  a hit.
+- GitHub **secret scanning + push protection** is enabled on every repo (free
+  for public repos) — it blocks the push rather than the review.
+- `.gitignore` in every repo covers: `docs/LOCAL-VALUES.md`, `*.tfstate*`,
+  `.env`, `changelog/liquibase.properties`, `*.pem`, `*.key`.
+- Before making any new repo public, run the scan over **full history**
+  (`git grep <pattern> $(git rev-list --all)`), not just the working tree.
 
 ## Conventions
 

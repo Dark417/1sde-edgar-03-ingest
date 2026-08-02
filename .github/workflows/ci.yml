@@ -9,7 +9,7 @@ env:
   PYTHON_VERSION: "3.11"
   # us-east-2 is not a preference, it is where the Unity Catalog metastore lives.
   # Verified live: `databricks metastores get` returns region us-east-2 and
-  # global_metastore_id aws:us-east-2:083f6670-cb9a-4058-9fd5-ed2fd09b1f15. A
+  # global_metastore_id aws:us-east-2:<METASTORE_ID>. A
   # workspace can only attach to the metastore in its own region, so every bucket
   # and every SSM parameter this repo reads belongs here too. This said us-east-1
   # until 2026-08-01, which would have failed every `ssm get-parameter` with
@@ -36,6 +36,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+
+      - name: Secret scan (Tier-1/Tier-2 leak gate, root AGENTS.md)
+        run: bash scripts/secret-scan.sh
 
       - uses: astral-sh/setup-uv@v5
         with:
