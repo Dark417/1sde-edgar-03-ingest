@@ -1,15 +1,9 @@
 # Ingest design — repo 3
 
 > Derived from `00-design-doc.md` and `02-data-contracts.md`, which are authoritative
-> and copied verbatim from repo 1 (`edgar-lakehouse-contracts` v1.1.0).
-> Where this document and those disagree, those win and this document is a bug —
-> with one caveat: two spots in repo 1's `02-data-contracts.md` predate the v1
-> envelope realign and are contradicted by repo 1's own *code*, which wins over its
-> doc. §1's envelope table still shows the old seven-field underscore-prefixed
-> envelope (the real one is the flat eleven-field `LandingEnvelope` in
-> `envelope.py`, with `payload_json` as a string), and §1's landing paths say
-> `dt=` where `names.landing_path()` emits `logical_date=`. Both need fixing in
-> repo 1, then a re-copy here.
+> and copied verbatim from repo 1 (`edgar-lakehouse-contracts` @ `59de873`, v1.1.0
+> plus the §1 envelope/path doc fix).
+> Where this document and those disagree, those win and this document is a bug.
 
 ## 1. What this repo is
 

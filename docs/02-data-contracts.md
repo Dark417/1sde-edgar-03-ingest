@@ -72,24 +72,37 @@ alongside `concept_canonical`. Concepts with no mapping carry
 
 ## §1 Landing envelope
 
-Every landing object is **gzip NDJSON, one envelope per line**. The `payload` is
-verbatim from the source — no parsing, no renaming, no dedup at landing.
+Every landing object is **gzip NDJSON, one envelope per line**. The payload is
+verbatim from the source — no parsing, no renaming, no dedup at landing. It
+travels as `payload_json`, one canonical JSON **string** (sorted keys, tight
+separators — see `canonical_payload_json()`), because the same payload must
+serialize to the same bytes on every run or `content_sha256` stops being a
+stable identity.
+
+The envelope is flat — no underscore prefixes; authoritative in `envelope.py`
+(`LandingEnvelope` / `ENVELOPE_FIELDS`):
 
 | Field (JSON key) | Type | Null | Notes |
 |---|---|---|---|
-| `_stream` | string | no | one of the three stream names |
-| `_logical_date` | string `YYYY-MM-DD` | no | the batch's logical date, never a datetime |
-| `_batch_id` | string | no | deterministic, from `names.batch_id(stream, logical_date)` |
-| `_fetched_at` | string, ISO-8601 UTC | no | wall-clock fetch time (metadata only — never used in keys or filenames) |
-| `_source_url` | string | no | exact URL fetched |
-| `_schema_version` | string | no | envelope schema semver, currently `"1"` |
-| `payload` | object or array | no | verbatim source record |
+| `envelope_version` | string | no | envelope schema version, currently `"1"` — read by bronze, never assumed |
+| `source_system` | string | no | constant `"sec_edgar"` |
+| `stream` | string | no | one of the three stream names |
+| `resource_id` | string | no | natural id of the thing fetched: an accession number, a padded CIK, or `<cik>/<concept>` |
+| `logical_date` | string `YYYY-MM-DD` | no | the batch's logical date, never a datetime |
+| `batch_id` | string | no | deterministic, from `names.batch_id(stream, logical_date)` |
+| `fetched_at` | string, RFC3339 `...Z` | no | wall-clock fetch time (metadata only — never used in keys or filenames) |
+| `request_url` | string | no | exact URL fetched |
+| `http_status` | int | no | HTTP status of the fetch |
+| `content_sha256` | string | no | sha256 of `payload_json` — integrity check and change-detection key |
+| `payload_json` | string | no | verbatim source record as one canonical JSON string |
 
-Landing paths (same filename in both modes, only the prefix differs):
+Landing paths (same filename in both modes, only the prefix differs; the
+partition key is `logical_date=`, matching `names.landing_path()` — with `dt=`
+bronze would silently get no partition column):
 
 ```
-s3://{raw_bucket}/edgar/{stream}/dt={logical_date}/{batch_id}.json.gz
-/Volumes/edgar/landing/edgar/{stream}/dt={logical_date}/{batch_id}.json.gz
+s3://{raw_bucket}/edgar/{stream}/logical_date={logical_date}/{batch_id}.json.gz
+/Volumes/edgar/landing/edgar/{stream}/logical_date={logical_date}/{batch_id}.json.gz
 ```
 
 ---
