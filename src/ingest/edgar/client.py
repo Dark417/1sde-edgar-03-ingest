@@ -245,10 +245,17 @@ class EdgarClient:
                 continue
 
             if response.status_code == 403:
+                # EDGAR returns 403 for two unrelated things: a rejected User-Agent, and
+                # a path that does not exist -- notably a daily index for a weekend or
+                # market holiday. Blaming the User-Agent unconditionally sent a reader
+                # chasing a credential problem on a Sunday, while the message itself
+                # printed a perfectly valid UA. Name both causes, most likely first.
                 raise ForbiddenError(
-                    f"EDGAR returned 403 for {url}. The User-Agent is missing or malformed "
-                    f"(sent {self.user_agent!r}). Not retried - retrying a 403 does not fix "
-                    "the User-Agent."
+                    f"EDGAR returned 403 for {url}. Two causes produce this: (a) the path "
+                    "does not exist -- a daily index is only published on trading days, so "
+                    "check whether this logical_date is a weekend or market holiday; or "
+                    f"(b) the User-Agent was rejected (sent {self.user_agent!r} -- it must "
+                    "carry a real contact email). Not retried: neither cause is transient."
                 )
             if response.status_code == 404:
                 return None
