@@ -20,12 +20,15 @@ env:
   # on every v* tag, and repo 1 is public, so the release asset is the source:
   # exact pinned version, no AWS, no credential. See "Obtain the contracts wheel".
   CONTRACTS_REPO: Dark417/1sde-edgar-01-contracts
-  # The release tag to install. Set as a repository variable (currently v1.2.0)
-  # and it must agree with the pyproject pin -- the version guard below fails the
-  # build if they drift. If the variable is ever unset, CI falls back to building
-  # from repo 1's default branch, which violates "always an exact pinned version"
+  # The release tag to install. It must agree with the pyproject pin -- the
+  # version guard below fails the build if they drift -- and with repo 2's
+  # `contracts_version`, which publishes /edgar-lakehouse/contracts/version as
+  # the fleet-wide declaration of what is deployed. All three read v1.4.1; when
+  # they disagree, SSM is announcing a version nothing actually runs.
+  # If the variable is ever unset, CI falls back to building from repo 1's
+  # default branch, which violates "always an exact pinned version"
   # (AGENTS.global.md law 1); the same guard is what keeps that fallback honest.
-  CONTRACTS_REF: v1.4.0
+  CONTRACTS_REF: v1.4.1
 
 permissions:
   contents: read
