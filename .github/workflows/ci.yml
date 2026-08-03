@@ -212,17 +212,28 @@ jobs:
           fi
           echo "digest=$DIGEST" >> "$GITHUB_OUTPUT"
 
-          # Repo 2's ECS task definition pulls `:latest`, and nothing used to create
-          # it -- so every Fargate task failed CannotPullContainerError against a
-          # repository that was full of images. The SHA tag remains the artifact of
-          # record and the thing to pin a task-definition revision to; `latest` exists
-          # only so the default task definition resolves at all.
+          # BOOTSTRAP ONLY -- this push succeeds exactly once, ever.
           #
-          # `|| true`: `latest` is mutable, but if immutability is ever switched on
-          # repo-wide this push would start failing and take a good build down with it.
-          # A stale `latest` is a smaller problem than a red pipeline.
+          # Repo 2 creates the ECR repository with image_tag_mutability = IMMUTABLE
+          # (deliberately: a digest pin means nothing if the tag behind it can be
+          # re-pointed). So `latest` belongs permanently to the first image that
+          # claimed it, and every later push here fails and is swallowed. The
+          # warning in the log is expected, not a regression.
+          #
+          # It is still needed. Repo 2's task definition falls back to `:latest`
+          # when no digest is supplied, which is the only thing that can work on
+          # the very first apply, when ECR is empty and no digest exists yet.
+          #
+          # The consequence to know: `:latest` is now the STALEST image in the
+          # registry, not the newest. Nothing routine reads it -- the step below
+          # registers a revision pinned to this build's digest, the scheduler
+          # targets the family without a revision so it takes that newest
+          # revision, and repo 2's tag-based revision sits underneath unused. But
+          # if Terraform ever replaces the task definition, its new revision
+          # becomes the newest and quietly runs the bootstrap image. It pulls
+          # fine; it is simply old code. Re-run this job to correct it.
           docker tag "$ECR:${GITHUB_SHA::12}" "$ECR:latest"
-          docker push "$ECR:latest" || echo "::warning::could not update :latest; task definitions pinned to a digest are unaffected"
+          docker push "$ECR:latest" || echo "::notice::could not update :latest -- expected, the ECR repo is IMMUTABLE and the tag is bootstrap-only. This build is deployed via the digest-pinned revision registered below."
 
       # Image size is a gate, not a nice-to-have: this container runs for ~90
       # seconds and a fat image is pure cold-start cost (AGENTS.md §6 F-6).
