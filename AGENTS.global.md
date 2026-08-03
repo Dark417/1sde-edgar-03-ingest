@@ -166,6 +166,23 @@ catalog/schemas before repo 1's `liquibase update` can run.
     `us-east-1` until 2026-08-01 and repos 1 and 3 inherited it; if you are about
     to write any other region, you are re-introducing that bug.
 
+## "Apply" means the whole sequence, not the first step
+
+When the user says **apply** (or `app1`, `app2`, …), that is one instruction covering
+**PR → wait for CI → merge → tag**, and where the repo has one, the deploy that follows.
+Finish it. Do not open a PR and hand the merge back — a branch sitting unmerged is not
+an applied change, and the user asked for the outcome, not the first move.
+
+- Wait for CI rather than merging blind. If it fails, fix it and keep going; a red merge
+  is not "done" either.
+- If the merge genuinely cannot proceed — a conflict needing a human decision, a failing
+  check you cannot fix, another thread's PR in the way — say so explicitly and name what
+  you need. Silence plus an open PR reads as completion and is not.
+- Tag after merging, and say what the tag triggers (repo 1's `v*` fires `apply-ddl` and
+  `publish`; repo 4's does not deploy on its own).
+- Never report an apply as successful without checking CI **on the merge commit**. Merged
+  and tagged is not the same as green.
+
 ## Sensitive values — these repos are PUBLIC
 
 Every repo is public on GitHub. Assume anything committed is permanently
