@@ -209,6 +209,18 @@ jobs:
           fi
           echo "digest=$DIGEST" >> "$GITHUB_OUTPUT"
 
+          # Repo 2's ECS task definition pulls `:latest`, and nothing used to create
+          # it -- so every Fargate task failed CannotPullContainerError against a
+          # repository that was full of images. The SHA tag remains the artifact of
+          # record and the thing to pin a task-definition revision to; `latest` exists
+          # only so the default task definition resolves at all.
+          #
+          # `|| true`: `latest` is mutable, but if immutability is ever switched on
+          # repo-wide this push would start failing and take a good build down with it.
+          # A stale `latest` is a smaller problem than a red pipeline.
+          docker tag "$ECR:${GITHUB_SHA::12}" "$ECR:latest"
+          docker push "$ECR:latest" || echo "::warning::could not update :latest; task definitions pinned to a digest are unaffected"
+
       # Image size is a gate, not a nice-to-have: this container runs for ~90
       # seconds and a fat image is pure cold-start cost (AGENTS.md §6 F-6).
       - name: Image size budget
