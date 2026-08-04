@@ -1,5 +1,19 @@
 # 1sde-edgar-03-ingest
 
+> **Part of the [EDGAR lakehouse](https://github.com/Dark417/1sde-edgar-06-chatbot#readme)
+> project.** That README is the front door: the dataflow, the Databricks layers, how the
+> chatbot answers, how the six repositories fit together, and what it costs — one diagram
+> each.
+>
+> **Live:** [the site](https://edgar.xiaoxiaolei.com) ·
+> [the chatbot](https://edgar.xiaoxiaolei.com/chat) ·
+> [SEC EDGAR](https://www.sec.gov/edgar), the source of every figure.
+
+
+Repo 3 of 6. Pulls filings from SEC EDGAR once a day and writes them exactly as
+received to S3 and to a Databricks volume. Nothing is parsed here, so any later mistake
+can be re-derived without asking the SEC again.
+
 Repo 3 of 5 in the **edgar lakehouse**: a batch CLI that fetches from SEC EDGAR
 and writes raw records to the landing zone. It is the only component in the
 project that touches the public internet.
