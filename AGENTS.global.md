@@ -110,10 +110,23 @@ catalog/schemas before repo 1's `liquibase update` can run.
 12. **End every chat response with BOTH summaries, in this order.** They do
     different jobs and neither replaces the other:
 
-    **(a) Your own summary — write it however the content deserves.** Prose,
-    a table, a diagram, whatever explains it best. This is where the reasoning,
-    the caveats, the "here is why this was harder than it looked", and the
-    things that do not fit a bucket belong. Do not flatten it to fit a template.
+    **(a) Your own summary — bullets only.** This is where the reasoning, the
+    caveats, the "here is why this was harder than it looked", and the things
+    that do not fit a bucket belong. Choose the content freely; do not choose
+    the form. **Every line is a bullet.** No paragraphs of prose between
+    headings, no narrative build-up, no "first… then… finally". Sub-bullets and
+    short headings are fine. A table is fine where a table genuinely reads
+    better than a list — a comparison across the same columns. A code block or
+    diagram is fine as the body of a bullet.
+
+    The reason is not tidiness. A wall of prose at the end of a long response is
+    where a caveat goes to die: the reader skims it, and the one sentence that
+    mattered was in the middle of the third paragraph. Bullets force one idea
+    per line and make skipping safe.
+
+    This applies to **any** response that ends with a summary, in any repo, on
+    any kind of task — code, research, a question answered, a plan. If the
+    response ends with a summary for the user to read, it is bullets.
 
     **(b) The structured status block below.** Freeform writing loses things:
     an unanswered question slides away when the conversation moves on, and a
