@@ -6,7 +6,6 @@
 > each.
 >
 > **Live:** [the site](https://edgar.xiaoxiaolei.com) ·
-> [the chatbot](https://edgar.xiaoxiaolei.com/chat) ·
 > [SEC EDGAR](https://www.sec.gov/edgar), the source of every figure.
 
 
